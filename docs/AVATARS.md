@@ -43,6 +43,9 @@ question-bank content policy in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## How to contribute a pack
 
+0. **Pre-flight locally**: `pnpm deepinterview avatars verify <your files>`
+   checks the technical contract (container, magic bytes, size budget) and
+   prints each file's SHA-256 to paste into the PR.
 1. **Open a PR** with the persona entry (or a new persona following the
    [#53](https://github.com/ngoanpv/DeepInterview/issues/53) pattern), the
    generation prompt(s), and the checklist above — plus the rendered files
@@ -62,6 +65,23 @@ question-bank content policy in [CONTRIBUTING.md](../CONTRIBUTING.md).
 maintainer-controlled hosting (Releases/CDN). Never link a contributor's URL
 from `personas.ts` — external content can change after review; the recorded
 SHA-256 binds the acceptance to the exact bytes that were reviewed.
+
+## The manifest + how users get assets
+
+Accepted packs are recorded in the repo-root **`avatars.manifest.json`** —
+persona, files, SHA-256 per file, release URL, and the contributor credit.
+Git history is the tamper-evident acceptance ledger (Release assets alone are
+maintainer-mutable; the in-repo hash is what makes tampering detectable).
+
+Self-hosters fetch assets with one command:
+
+```bash
+pnpm deepinterview avatars pull   # downloads + SHA-256-verifies into apps/web/public/avatars/
+```
+
+After a pull the app serves avatars locally with **zero runtime dependency on
+project infrastructure**; before one, it renders the gradient stage. Assets
+are always optional (the mock-first rule applies to pixels too).
 
 ## Reference implementation
 
