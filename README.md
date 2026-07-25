@@ -104,7 +104,7 @@ Practicing in your head (or in a text chat) isn't how interviews work. DeepInter
 - **Community playbook library** — question-bank packs in [`skills/`](skills/) (versioned Markdown + YAML) are retrieved by role/level and injected into the Question Planner: packs the community writes get asked in real interviews. Validate yours with `pnpm deepinterview skills lint`.
 - **Scored feedback** — a rubric-based evaluator + language coach write a per-competency `ScoreCard` with strengths, gaps, model answers, and next steps that map straight back to the questions you were asked.
 - **Prep Coach** *(in progress)* — turns your gaps into an LLM study loop (plan → drills → Socratic chat). Grounded + cited answers are **optional**: set `LIGHTRAG_URL` (or wire a managed RAG behind the same adapter) to ground responses in your own uploaded materials; by default the coach answers honestly without fabricated citations.
-- **Cost-smart avatars** *(in progress)* — the crossfade system + persona fallbacks are built; pre-rendered **Veo 3.1** idle/speaking loops drop in as the assets land (until then it renders a calm gradient stage). Original anime / superhero / recruiter personas (no named IP), so runtime cost is **CDN-only — no per-minute avatar fees**.
+- **Cost-smart avatars** *(in progress)* — the crossfade system + persona fallbacks are built; pre-rendered idle/speaking loops from **any video generator** drop in as packs land ([docs/AVATARS.md](docs/AVATARS.md) — until then it renders a calm gradient stage). Original personas only (no named IP), so runtime cost is **CDN-only — no per-minute avatar fees**.
 
 ## Provider matrix
 

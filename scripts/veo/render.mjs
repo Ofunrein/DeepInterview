@@ -240,6 +240,15 @@ async function liveRender(personas, model, apiKey) {
       ? await sdkGenerateImage(genai, apiKey, p.reference)
       : await restGenerateImage(apiKey, p.reference);
 
+    // Save the still too — it doubles as the gallery poster (personas.ts
+    // poster_url) and makes re-runs auditable.
+    if (referenceImage?.imageBytes) {
+      const ext = /jpe?g/.test(referenceImage.mimeType || "") ? "jpg" : "png";
+      const stillPath = resolve(OUT_DIR, `${id}.${ext}`);
+      await writeFile(stillPath, Buffer.from(referenceImage.imageBytes, "base64"));
+      console.log(`    wrote ${stillPath}`);
+    }
+
     // Steps 2 & 3: idle + speaking loops from the same first frame.
     for (const kind of ["idle", "speaking"]) {
       console.log(`  Rendering ${kind} loop (8s, seamless)…`);
@@ -284,7 +293,7 @@ async function sdkGenerateImage(genai, apiKey, prompt) {
   const { GoogleGenAI } = genai;
   const ai = new GoogleGenAI({ apiKey });
   const res = await ai.models.generateImages({
-    model: "imagen-3.0-generate-002",
+    model: "gemini-3-pro-image",
     prompt,
     config: { numberOfImages: 1 },
   });
@@ -317,23 +326,24 @@ async function sdkGenerateVideo(genai, apiKey, model, prompt, referenceImage) {
 const REST_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 async function restGenerateImage(apiKey, prompt) {
-  // Imagen predict endpoint returns base64 bytes.
+  // Gemini-native image generation (Imagen predict is closed to new users).
   const res = await fetch(
-    `${REST_BASE}/models/imagen-3.0-generate-002:predict?key=${apiKey}`,
+    `${REST_BASE}/models/gemini-3-pro-image:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: { sampleCount: 1 },
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseModalities: ["IMAGE"] },
       }),
     },
   );
-  if (!res.ok) throw new Error(`Imagen REST error ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Image REST error ${res.status}: ${await res.text()}`);
   const json = await res.json();
-  const b64 = json?.predictions?.[0]?.bytesBase64Encoded;
+  const part = json?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
+  const b64 = part?.inlineData?.data;
   if (!b64) throw new Error("No reference image bytes returned by REST.");
-  return { imageBytes: b64, mimeType: "image/png" };
+  return { imageBytes: b64, mimeType: part.inlineData.mimeType || "image/png" };
 }
 
 async function restGenerateVideo(apiKey, model, prompt, referenceImage) {
@@ -369,10 +379,23 @@ async function restGenerateVideo(apiKey, model, prompt, referenceImage) {
     op = await poll.json();
   }
 
-  const uri =
-    op?.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri;
-  if (!uri) throw new Error("No video URI in REST response.");
-  const dl = await fetch(`${uri}&key=${apiKey}`);
+  // The operation response shape has drifted across Veo releases — accept
+  // every known variant, and dump the payload when none match so the next
+  // drift is diagnosable without re-spending a render.
+  const sample =
+    op?.response?.generateVideoResponse?.generatedSamples?.[0] ??
+    op?.response?.generatedVideos?.[0] ??
+    op?.response?.videos?.[0];
+  const uri = sample?.video?.uri ?? sample?.uri;
+  const inline = sample?.video?.encodedVideo ?? sample?.bytesBase64Encoded;
+  if (inline) return Buffer.from(inline, "base64");
+  if (!uri) {
+    throw new Error(
+      `No video URI in REST response. Operation payload:\n${JSON.stringify(op, null, 2).slice(0, 4000)}`,
+    );
+  }
+  const sep = uri.includes("?") ? "&" : "?";
+  const dl = await fetch(`${uri}${sep}key=${apiKey}`);
   if (!dl.ok) throw new Error(`Veo download error ${dl.status}`);
   return Buffer.from(await dl.arrayBuffer());
 }

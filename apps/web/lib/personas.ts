@@ -30,6 +30,9 @@ export interface Persona {
   idle_url: string;
   /** Speaking loop (talking mouth, nods, gestures). Placeholder. */
   speaking_url: string;
+  /** Optional contribution credit, e.g. "rendered by @user with Sora 2".
+   * Shown in the avatar gallery / release notes (see docs/AVATARS.md). */
+  credit?: string;
 }
 
 export const PERSONAS: Persona[] = [
