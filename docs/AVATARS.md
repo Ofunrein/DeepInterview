@@ -49,10 +49,19 @@ question-bank content policy in [CONTRIBUTING.md](../CONTRIBUTING.md).
    **attached to the PR or linked** (release, Drive, etc.).
 2. **Binaries never enter git history.** Do not commit media; `apps/web/
    public/avatars/` is gitignored as a local-dev drop-in only.
-3. On acceptance, a maintainer publishes the files as **GitHub Release
-   artifacts** (fork-survivable, archived) and to the CDN, then updates the
-   persona's `poster_url` / `idle_url` / `speaking_url` and your `credit`
-   line ("rendered by @you with <generator>").
+3. **Prefer attaching files to the PR** over external links — PR attachments
+   can't be content-swapped under the same URL later; a Drive/Dropbox link can.
+4. On acceptance, a maintainer **downloads the files, reviews those exact
+   bytes** (never just the stream behind a link), records each file's
+   **SHA-256 in the PR**, and publishes the reviewed copies as **GitHub
+   Release artifacts** (fork-survivable, archived) and to the CDN — then
+   updates the persona's `poster_url` / `idle_url` / `speaking_url` and your
+   `credit` line ("rendered by @you with <generator>").
+
+**Integrity rule (for maintainers):** persona URLs may only ever point at
+maintainer-controlled hosting (Releases/CDN). Never link a contributor's URL
+from `personas.ts` — external content can change after review; the recorded
+SHA-256 binds the acceptance to the exact bytes that were reviewed.
 
 ## Reference implementation
 
