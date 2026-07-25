@@ -212,8 +212,9 @@ flowchart TB
 ## Community
 
 - **[Discord](https://discord.gg/fT7Ecbyq)** — join the build-in-public chat.
-- **[GitHub Discussions](https://github.com/ngoanpv/DeepInterview/discussions)** — questions, ideas, language-pack requests.
+- **[GitHub Discussions](https://github.com/ngoanpv/DeepInterview/discussions)** — questions, ideas, language-pack and playbook requests.
 - **[Issues](https://github.com/ngoanpv/DeepInterview/issues)** — bugs & features (templates provided).
+- **[The playbook library](skills/README.md)** — browsable interview question-bank packs that directly shape the AI's questions; contributions welcome ([#38](https://github.com/ngoanpv/DeepInterview/issues/38)).
 
 Built in the open. We respond to issues — ghosting contributors is the #1 cause of OSS death, and we don't intend to.
 

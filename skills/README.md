@@ -10,6 +10,23 @@ promoted from real interview runs (`{company} × {role} × {level}`).
 - Always attach provenance ("based on N reports, last verified Z"); company facts pass a
   human/LLM review gate to avoid compounding hallucinated claims.
 
+## Pack index
+
+<!-- PACK-INDEX:START — generated, do not edit by hand -->
+| Pack | Company | Role | Level | Status | Confidence | Questions | Verified |
+|---|---|---|---|---|---|---|---|
+| [generic-backend-engineer-senior](./generic-backend-engineer-senior.md) | generic | backend-engineer | senior | promoted | 0.50 | 7 | 2026-07-25 |
+| [generic-frontend-engineer-mid](./generic-frontend-engineer-mid.md) | generic | frontend-engineer | mid | promoted | 0.50 | 7 | 2026-07-25 |
+| [generic-software-engineer-junior](./generic-software-engineer-junior.md) | generic | software-engineer | junior | promoted | 0.50 | 7 | 2026-07-25 |
+| [examplecorp-backend-senior](./example-corp-backend-senior.md) | ExampleCorp | backend-engineer | senior | draft | 0.30 | 2 | 2026-06-08 |
+<!-- PACK-INDEX:END -->
+
+Regenerate after adding or editing packs:
+
+```bash
+uv --directory apps/agent run python -m deepinterview_agent.skilllib.gen_index
+```
+
 `example-corp-backend-senior.md` is a **fictional** sample showing the format.
 
 The `generic-*.md` packs are hand-curated, company-agnostic fallbacks (matched
