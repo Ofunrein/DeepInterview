@@ -378,3 +378,39 @@ def test_propose_default_dir_writes_to_review_only(
 
     assert (tmp_path / REVIEW_SUBDIR / f"{draft.id}.md").exists()
     assert list(tmp_path.glob("*.md")) == [], "default branch must not write live skills"
+
+
+# --- pack index ---------------------------------------------------------------
+
+
+def test_render_index_lists_packs_and_counts_questions(tmp_path: Path) -> None:
+    from deepinterview_agent.skilllib.gen_index import render_index
+
+    save_skill(_sample_skill(), tmp_path / "examplecorp-backend-engineer-senior.md")
+    table = render_index(tmp_path)
+    assert "[examplecorp-backend-engineer-senior](./examplecorp-backend-engineer-senior.md)" in table
+    assert "| 1 |" in table  # one question-bank item in the sample body
+
+
+def test_update_readme_replaces_only_marker_block(tmp_path: Path) -> None:
+    from deepinterview_agent.skilllib.gen_index import (
+        END_MARKER,
+        START_MARKER,
+        update_readme,
+    )
+
+    save_skill(_sample_skill(), tmp_path / "examplecorp-backend-engineer-senior.md")
+    readme = tmp_path / "README.md"
+    readme.write_text(f"intro\n\n{START_MARKER}\nstale\n{END_MARKER}\n\noutro\n", encoding="utf-8")
+    update_readme(tmp_path)
+    text = readme.read_text(encoding="utf-8")
+    assert "stale" not in text
+    assert text.startswith("intro") and text.rstrip().endswith("outro")
+    assert "| Pack |" in text
+
+    # Missing markers is a hard, explained failure.
+    bare = tmp_path / "sub"
+    bare.mkdir()
+    (bare / "README.md").write_text("no markers", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        update_readme(bare)
