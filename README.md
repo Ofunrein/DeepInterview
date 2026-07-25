@@ -194,7 +194,7 @@ flowchart TB
   pc -.->|"closes the loop"| ctx
 ```
 
-**Module boundaries:** `apps/web` owns UI/auth/upload/token and knows nothing about LLM/STT/TTS · `apps/agent` owns the voice loop + prep/post pipelines + avatar render util · `services/lightrag` owns the knowledge base · `cli/` owns first-run setup · **`packages/shared` is the cross-language contract** (TS source of truth, mirrored as Pydantic). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and the full spec in [`site/AI-Interviewer-Build-Handoff.md`](site/AI-Interviewer-Build-Handoff.md).
+**Module boundaries:** `apps/web` owns UI/auth/upload/token and knows nothing about LLM/STT/TTS · `apps/agent` owns the voice loop + prep/post pipelines + avatar render util · `services/lightrag` owns the knowledge base · `cli/` owns first-run setup · **`packages/shared` is the cross-language contract** (TS source of truth, mirrored as Pydantic). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Using DeepInterview
 

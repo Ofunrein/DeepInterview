@@ -7,17 +7,18 @@ import {
 } from "@deepinterview/shared";
 import { gateRequest } from "@deepinterview/ee";
 import { getUser } from "@/lib/supabase/server";
+import { serverEnv } from "@/lib/env";
 
 // Reads server-only env (LIGHTRAG_URL) and the per-request user; never prerender.
 export const dynamic = "force-dynamic";
 
 /**
- * Incoming client body. We do NOT validate with the shared `KbQueryRequestSchema`
- * here: that names the store key `user_id`, but the OSS flow is auth-free and
- * keys the knowledge store by `session_id` (the same key the prep pipeline
- * ingests under and the Study Coach retrieves with). The client sends
- * `{session_id?, query, lang}`; `session_id` defaults to "anonymous" and `lang`
- * falls back to "en".
+ * Incoming client body `{session_id?, query, lang}`; `session_id` defaults to
+ * "anonymous" and `lang` falls back to "en". The knowledge store is keyed by
+ * `session_id` (the same key the prep pipeline ingests under and the Study Coach
+ * retrieves with) — the shared `KbQueryRequest` names this `store_key`. This
+ * route forwards to the LightRAG sidecar, whose own request model still names
+ * the partition key `user_id`, so we send `user_id: session_id` below.
  */
 const BodySchema = z.object({
   session_id: z.string().default("anonymous"),
@@ -83,9 +84,13 @@ export async function POST(request: Request) {
   }
 
   try {
+    const secret = serverEnv.lightragApiSecret;
     const upstream = await fetch(`${lightragUrl.replace(/\/$/, "")}/kb/query`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(secret ? { "x-internal-secret": secret } : {}),
+      },
       // Scope retrieval by session_id — the key the prep pipeline ingested
       // under and the agent coach queries with — so the docs are reachable.
       body: JSON.stringify({

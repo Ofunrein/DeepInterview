@@ -17,7 +17,7 @@ def _client() -> TestClient:
 def test_kb_ingest_returns_track_id_offline() -> None:
     resp = _client().post(
         "/api/kb/ingest",
-        json={"user_id": "user_x", "files": ["kb://doc-1", "kb://doc-2"]},
+        json={"store_key": "user_x", "files": ["kb://doc-1", "kb://doc-2"]},
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -27,7 +27,7 @@ def test_kb_ingest_returns_track_id_offline() -> None:
 
 def test_kb_ingest_is_deterministic_offline() -> None:
     client = _client()
-    payload = {"user_id": "user_x", "files": ["kb://doc-1", "kb://doc-2"]}
+    payload = {"store_key": "user_x", "files": ["kb://doc-1", "kb://doc-2"]}
     first = client.post("/api/kb/ingest", json=payload).json()["track_id"]
     second = client.post("/api/kb/ingest", json=payload).json()["track_id"]
     assert first == second
@@ -36,7 +36,7 @@ def test_kb_ingest_is_deterministic_offline() -> None:
 def test_kb_query_returns_grounded_answer() -> None:
     resp = _client().post(
         "/api/kb/query",
-        json={"user_id": "user_x", "query": "How do I structure a STAR answer?", "lang": "en"},
+        json={"store_key": "user_x", "query": "How do I structure a STAR answer?", "lang": "en"},
     )
     assert resp.status_code == 200
     body = resp.json()

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from ..core.deps import build_deps
 from ..core.logging import get_logger
@@ -38,6 +38,13 @@ _INGEST_TIMEOUT = 60.0
 # Timeout for a grounded query (seconds).
 _QUERY_TIMEOUT = 20.0
 
+# Route-level size ceilings (Starlette imposes NO default body limit), mirroring
+# api/prep.py. Bound both the number of files and the total payload so a single
+# request can't flood memory or the sidecar.
+_MAX_INGEST_FILES = 100
+_MAX_INGEST_TOTAL_LEN = 5_000_000  # ~5MB of raw text / URLs
+_MAX_QUERY_LEN = 10_000
+
 
 async def _guarded(coro, *, label: str, timeout: float):
     """Await ``coro`` with a timeout; on ANY error return ``None`` (caller falls back)."""
@@ -55,22 +62,28 @@ async def kb_ingest(req: KbIngestRequest) -> KbIngestResponse:
     # paths. With no LIGHTRAG_URL the adapter is MockKnowledge (deterministic
     # offline stub); when configured it forwards to the sidecar's /kb/ingest and
     # degrades to the stub on any failure rather than 5xx.
+    if len(req.files) > _MAX_INGEST_FILES or (
+        sum(len(f) for f in req.files) > _MAX_INGEST_TOTAL_LEN
+    ):
+        raise HTTPException(status_code=413, detail="Ingest payload too large")
     deps = build_deps()
     track_id = await _guarded(
-        deps.knowledge.ingest(req.user_id, req.files),
+        deps.knowledge.ingest(req.store_key, req.files),
         label="ingest",
         timeout=_INGEST_TIMEOUT,
     )
     if track_id is None:
-        track_id = f"trk-{req.user_id}-{len(req.files)}"
+        track_id = f"trk-{req.store_key}-{len(req.files)}"
     return KbIngestResponse(track_id=track_id)
 
 
 @router.post("/api/kb/query", response_model=KbQueryResponse)
 async def kb_query(req: KbQueryRequest) -> KbQueryResponse:
+    if len(req.query) > _MAX_QUERY_LEN:
+        raise HTTPException(status_code=413, detail="Query too large")
     deps = build_deps()
     grounded = await _guarded(
-        deps.knowledge.search(req.user_id, req.query, req.lang),
+        deps.knowledge.search(req.store_key, req.query, req.lang),
         label="knowledge",
         timeout=_QUERY_TIMEOUT,
     )

@@ -8,6 +8,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/cn";
 import { askCoach, type Citation } from "@/lib/coach";
+import { useLocale } from "@/lib/i18n/client";
 
 interface ChatTurn {
   id: string;
@@ -39,6 +40,8 @@ export function GroundedChat({ sessionId }: { sessionId?: string | null }) {
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<"retrieving" | "grounding">("retrieving");
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Answer in the user's chosen language, not always English.
+  const locale = useLocale();
 
   // Cycle the thinking label so a slow retrieval reads as progress.
   useEffect(() => {
@@ -70,7 +73,7 @@ export function GroundedChat({ sessionId }: { sessionId?: string | null }) {
     setLoading(true);
 
     try {
-      const res = await askCoach(q, "en", sessionId ?? "anonymous");
+      const res = await askCoach(q, locale, sessionId ?? "anonymous");
       setTurns((prev) => [
         ...prev,
         {

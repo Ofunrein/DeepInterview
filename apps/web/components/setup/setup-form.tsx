@@ -47,6 +47,9 @@ type Step = { key: string; label: string };
 // block obviously-empty / garbage-short submits with a helpful nudge.
 const MIN_JD_CHARS = 40;
 const MIN_CV_CHARS = 30;
+// Max CV file size. Matches the /api/upload ceiling; also keeps the no-R2
+// data-URL fallback (base64 is ~+33%) under the Next server-action body limit.
+const MAX_CV_BYTES = 10 * 1024 * 1024;
 
 // One-click sample inputs for fast testing / demos. Each is a matched CV + JD +
 // company so the prep pipeline gets a coherent pair. Pure UX sugar — clicking a
@@ -110,7 +113,9 @@ export function SetupForm({ r2Configured }: { r2Configured: boolean }) {
       : cvLen < MIN_CV_CHARS
         ? `Add a bit more — your CV text looks too short (at least ${MIN_CV_CHARS} characters).`
         : null
-    : null;
+    : file.size > MAX_CV_BYTES
+      ? `That file is too large (max ${Math.floor(MAX_CV_BYTES / (1024 * 1024))} MB). Upload a smaller CV or paste the text.`
+      : null;
   const jdError =
     jdLen === 0
       ? t(messages, "setup.needJd")
@@ -162,6 +167,7 @@ export function SetupForm({ r2Configured }: { r2Configured: boolean }) {
       body: JSON.stringify({
         filename: f.name,
         content_type: f.type || "application/octet-stream",
+        size: f.size,
       }),
     });
     if (!res.ok) throw new Error("Upload could not be prepared.");
@@ -221,11 +227,6 @@ export function SetupForm({ r2Configured }: { r2Configured: boolean }) {
       });
 
       if (!result.ok) {
-        // Out of interviews → send the user to pricing to upgrade / buy credits.
-        if (result.reason === "out_of_interviews") {
-          router.push("/pricing");
-          return;
-        }
         // Required-auth distribution and the session expired mid-form →
         // sign back in, then return to setup.
         if (result.reason === "auth_required") {

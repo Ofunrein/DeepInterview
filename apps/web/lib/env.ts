@@ -51,6 +51,14 @@ export const serverEnv = {
   get agentApiUrl(): string {
     return process.env.AGENT_API_URL || "http://localhost:8000";
   },
+  /** Shared secret for the agent API's guarded write endpoints (opt-in). */
+  get internalApiSecret(): string | undefined {
+    return process.env.INTERNAL_API_SECRET || undefined;
+  },
+  /** Shared secret for the LightRAG sidecar's guarded endpoints (opt-in). */
+  get lightragApiSecret(): string | undefined {
+    return process.env.LIGHTRAG_API_SECRET || undefined;
+  },
 };
 
 /** True when both public Supabase keys are present (needed for auth). */

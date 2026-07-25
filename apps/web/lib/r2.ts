@@ -34,6 +34,7 @@ function r2Client(): S3Client {
 export async function presignUpload(
   key: string,
   contentType: string,
+  contentLength?: number,
 ): Promise<PresignedUpload> {
   if (!isR2Configured()) {
     throw new Error(
@@ -41,10 +42,14 @@ export async function presignUpload(
     );
   }
 
+  // Binding ContentType + ContentLength into the signature forces the client's
+  // PUT to match exactly, so a presigned URL can't be reused to upload a
+  // different (or unbounded) object than the one the caller was authorized for.
   const command = new PutObjectCommand({
     Bucket: serverEnv.r2Bucket,
     Key: key,
     ContentType: contentType,
+    ContentLength: contentLength,
   });
 
   const uploadUrl = await getSignedUrl(r2Client(), command, { expiresIn: 600 });

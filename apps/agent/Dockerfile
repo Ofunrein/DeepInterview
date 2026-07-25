@@ -17,8 +17,9 @@
 
 FROM python:3.11-slim AS base
 
-# uv: fast, reproducible installs from the published binary.
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# uv: fast, reproducible installs from the published binary. Pin the tag so a
+# breaking uv release can't silently change the image.
+COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

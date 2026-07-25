@@ -37,3 +37,17 @@ export function useMessages(): Messages {
   }, []);
   return messages;
 }
+
+/**
+ * The active locale from the `locale` cookie. Starts at EN for a stable first
+ * paint, then re-resolves after mount (same hydration-safe pattern as
+ * `useMessages`). Use it to route locale-dependent behavior (e.g. the language
+ * the study coach answers in) to the user's chosen language.
+ */
+export function useLocale(): Locale {
+  const [locale, setLocale] = useState<Locale>("en");
+  useEffect(() => {
+    setLocale(readLocaleCookie());
+  }, []);
+  return locale;
+}

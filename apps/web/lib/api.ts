@@ -16,9 +16,13 @@ async function postJson<T>(
   body: unknown,
   parse: (data: unknown) => T,
 ): Promise<T> {
+  const secret = serverEnv.internalApiSecret;
   const res = await fetch(`${serverEnv.agentApiUrl}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(secret ? { "x-internal-secret": secret } : {}),
+    },
     body: JSON.stringify(body),
     cache: "no-store",
   });

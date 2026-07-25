@@ -14,11 +14,12 @@ capability-guarded: ids are unguessable uuid4.)
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..core.deps import build_deps
 from ..shared_models import InterviewContext
+from .auth import require_internal_secret
 from .views import SessionView
 
 router = APIRouter()
@@ -40,6 +41,10 @@ class LiveResultRequest(BaseModel):
 
 _ALLOWED_LIVE_STATUSES = {"no_answers", "error"}
 
+# Once a session reaches one of these it is done; a late/replayed live-result
+# write must not be able to overwrite a scored interview's history.
+_TERMINAL_STATUSES = {"complete", "no_answers", "error", "rejected"}
+
 
 @router.get("/api/session/{session_id}", response_model=SessionView)
 async def get_session(session_id: str) -> SessionView:
@@ -49,12 +54,22 @@ async def get_session(session_id: str) -> SessionView:
     return view
 
 
-@router.post("/api/session/{session_id}/live-result")
+@router.post(
+    "/api/session/{session_id}/live-result",
+    dependencies=[Depends(require_internal_secret)],
+)
 async def post_live_result(session_id: str, req: LiveResultRequest) -> dict:
     deps = build_deps()
     view = await deps.repo.get_session_view(session_id)
     if view is None:
         raise HTTPException(status_code=404, detail="Unknown session_id")
+    # Refuse to rewrite a session that has already reached a terminal state:
+    # the transcript/answers are final once scored, and a replayed or forged
+    # write must not be able to mutate them.
+    if view.status in _TERMINAL_STATUSES:
+        raise HTTPException(
+            status_code=409, detail=f"Session already {view.status}"
+        )
     if req.transcript:
         await deps.repo.save_transcript(session_id, req.transcript)
     await deps.repo.save_context(session_id, req.context)

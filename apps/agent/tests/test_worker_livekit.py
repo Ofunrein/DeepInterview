@@ -293,7 +293,9 @@ class _RecordingHttpx:
             async def __aexit__(self, *exc: Any) -> bool:
                 return False
 
-            async def post(self, url: str, json: Any = None) -> SimpleNamespace:  # noqa: A002 - mirrors httpx
+            async def post(
+                self, url: str, json: Any = None, headers: Any = None
+            ) -> SimpleNamespace:  # noqa: A002 - mirrors httpx
                 dumps(json)  # what the real client does with json=
                 recorder.posts.append((url, json))
                 if url.endswith("/live-result") and not recorder.live_result_ok:

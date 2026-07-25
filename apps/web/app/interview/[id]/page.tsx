@@ -21,10 +21,11 @@ export const dynamic = "force-dynamic";
  * with no sign-in, and the unguessable session id IS the capability (see below).
  *
  * Token: minted server-side via `createInterviewToken` behind an
- * `isLiveKitConfigured()` guard (calling the lib directly is simpler than POSTing
- * to our own /api/token and never throws at import). When LiveKit is NOT
- * configured we pass `token=null` so `<LiveRoom>` renders in preview
- * (not-connected) mode — the offline path the build runs with no env keys.
+ * `isLiveKitConfigured()` guard, only after the session is verified to exist and
+ * pinned to its own room (there is deliberately no general-purpose token
+ * endpoint — a caller cannot mint a token for an arbitrary room or identity).
+ * When LiveKit is NOT configured we pass `token=null` so `<LiveRoom>` renders in
+ * preview (not-connected) mode — the offline path the build runs with no keys.
  *
  * Capability guard: before minting, the session must exist with the agent
  * (same auth-free read path the report page uses). The session id is an
@@ -88,6 +89,16 @@ export default async function InterviewPage({
     // never a client-supplied room name.
     const session = await loadSession(id);
     if (!session || session.session_id !== id) notFound();
+
+    // Only mint a publish-capable token for a session that is still joinable.
+    // A shared report/prep link points at the same id; without this a finished
+    // (or errored) session's link would still open a live mic into the room.
+    const JOINABLE = new Set(["prep", "ready"]);
+    if (!JOINABLE.has(session.status)) {
+      return (
+        <LiveRoom sessionId={id} persona={persona} token={null} url={null} />
+      );
+    }
 
     const room = session.session_id;
     const minted = await createInterviewToken({

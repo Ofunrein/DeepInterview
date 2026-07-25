@@ -121,25 +121,7 @@ green.
 
 ---
 
-### 7. 🟡 Add a real Paddle webhook signature-verification test
-
-**Problem.** The billing webhook (`apps/web/app/api/billing/webhook/route.ts`)
-verifies Paddle signatures via `verifyPaddleWebhook` in
-`apps/web/lib/billing-server.ts`, but there's no test pinning the documented
-status contract (501 when unconfigured, 400 on missing/invalid signature, 200 on
-accepted).
-
-**Files.** a new test under `apps/web` (co-located test or `tests/`),
-`apps/web/lib/billing-server.ts` (read the signature scheme), `route.ts` (the
-contract under test).
-
-**Acceptance.** Tests assert: unconfigured → 501; missing/invalid signature →
-400; valid signature with an ignored event type → 200. No real Paddle secret
-required — drive it with a test secret/env. `pnpm test` green.
-
----
-
-### 8. 🟠 Add `GET /api/session/[id]` so the report reads live data
+### 7. 🟠 Add `GET /api/session/[id]` so the report reads live data
 
 **Problem.** `apps/web/app/report/[id]/page.tsx` reads the `sessions` row
 directly from Supabase and falls back to sample data offline. There is no
@@ -158,7 +140,7 @@ their own session. `pnpm typecheck` green.
 
 ---
 
-### 9. 🟢 Record the hero `demo.gif` for the README
+### 8. 🟢 Record the hero `demo.gif` for the README
 
 **Problem.** The README's hero slot needs a short looping demo of a real mock
 interview (setup → live voice → report). This is a non-code contribution that
@@ -173,29 +155,7 @@ core loop, referenced from both READMEs, with no real candidate PII on screen
 
 ---
 
-### 10. 🟠 Make interview metering a DB-atomic increment
-
-**Problem.** `apps/web/app/setup/actions.ts` meters voice interviews with a
-non-atomic read-then-write
-(`.update({ interviews_used: (profile.interviews_used ?? 0) + 1 })`). Two
-concurrent session starts can race and under-count usage — which matters because
-the per-tier cap is enforced in code (golden rule 5). Move the increment into an
-atomic DB operation.
-
-**Files.** `apps/web/app/setup/actions.ts`, a new Supabase migration under
-`supabase/migrations/` adding an `increment_interviews_used` RPC (atomic
-`UPDATE ... SET interviews_used = interviews_used + 1` that also respects the
-cap), and `apps/web/lib/plan.ts` (the cap source of truth, for reference).
-
-**Acceptance.** The increment is a single atomic statement / RPC (no
-read-then-write in app code); the cap from `plan.ts` is honored server-side;
-overage still routes to the credit ledger as before; behavior is unchanged when
-Supabase is unconfigured (offline path). Include the migration. `pnpm typecheck`
-green.
-
----
-
 Don't see your idea here? Open a [feature request](../.github/ISSUE_TEMPLATE/feature_request.yml)
 or start a Discussion. Bigger pieces of work are tracked as the work packages
-(WP-0…WP-13) in
-[`site/AI-Interviewer-Build-Handoff.md`](../site/AI-Interviewer-Build-Handoff.md) §16.
+(WP-0…WP-13) in the GitHub issues; see [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)
+for how they fit together.

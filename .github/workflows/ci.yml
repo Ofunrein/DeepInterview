@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
 
+# Cancel superseded runs on the same ref (e.g. a force-push to a PR branch) so
+# CI isn't wasting minutes on stale commits.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,6 +31,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Install JS deps
         run: pnpm install
@@ -57,3 +65,32 @@ jobs:
 
       - name: Validate docker compose
         run: docker compose config -q
+
+  # Actually BUILD the images so Dockerfile breakage (copy paths, --frozen
+  # lockfile drift, the worker model-bake step) surfaces in CI, not at deploy.
+  # No push — build-only validation, with a layer cache to keep it fast.
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build agent API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/agent/Dockerfile
+          target: api
+          push: false
+          cache-from: type=gha,scope=agent-api
+          cache-to: type=gha,mode=max,scope=agent-api
+
+      - name: Build lightrag image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/lightrag
+          push: false
+          cache-from: type=gha,scope=lightrag
+          cache-to: type=gha,mode=max,scope=lightrag
