@@ -1,4 +1,5 @@
 import { runInit } from "./commands/init";
+import { runSkills } from "./commands/skills";
 
 const [, , command, ...args] = process.argv;
 
@@ -12,6 +13,8 @@ Usage:
                                  (for CI / scripted setups; --yes is an alias)
   deepinterview init --force     Re-sync the local-dev copies from the root .env
                                  (non-interactive)
+  deepinterview skills lint      Validate skill packs in skills/ (frontmatter
+                                 schema + conventions) before opening a PR
 
 \`init\` writes three files:
   .env                 → read by docker compose (the full stack)
@@ -28,6 +31,9 @@ async function main(): Promise<void> {
   switch (command) {
     case "init":
       await runInit(args);
+      break;
+    case "skills":
+      await runSkills(args);
       break;
     case undefined:
     case "help":

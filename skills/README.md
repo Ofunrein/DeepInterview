@@ -17,3 +17,10 @@ for any company when no company-specific pack exists) — use them as the model
 for contributing new question banks (see issue #38). Set `company: generic`, a
 kebab-case `role` slug, and `status: draft` on contributions; maintainers flip
 status on review. See SCHEMA.md for how retrieval matches and ranks packs.
+
+Before opening a PR, validate your pack and read the content policy
+(recollection-based, generalized, de-identified — hard requirement):
+
+```bash
+pnpm deepinterview skills lint   # after `pnpm build`; see CONTRIBUTING.md §6
+```

@@ -112,7 +112,38 @@ This is the cleanest first contribution — see the good-first-issues for a work
 
 ---
 
-## 6. Licensing, DCO sign-off & the `/ee` boundary
+## 6. Contributing skill packs (question banks)
+
+Interview playbooks live in [`skills/`](skills/) as Markdown + YAML frontmatter
+and are injected straight into the question planner — the content you write
+shapes real interviews. Model yours on the committed `generic-*.md` packs.
+
+**Conventions** (full schema + how retrieval matches and ranks: [`skills/SCHEMA.md`](skills/SCHEMA.md)):
+
+- `company: generic` for role-level packs that should serve any company; a real
+  company name only for company-specific playbooks.
+- `role` is a **kebab-case slug** (`backend-engineer`) — matched by token
+  subset against live JD titles.
+- `status: draft` on contributions; maintainers flip status on review.
+
+**Validate before opening a PR:**
+
+```bash
+pnpm build                      # once, to build the CLI
+pnpm deepinterview skills lint  # schema + convention checks on skills/
+```
+
+**Content policy (hard requirement).** Packs must be **recollection-based,
+generalized, and de-identified**. Describe patterns and themes ("a system-design
+round probing multi-region consistency"), never claimed-verbatim transcripts.
+Do **not** contribute: question dumps from leaked or internal sources, anything
+you're under NDA about, copyrighted interview-prep material, or personal data
+about candidates or interviewers. PRs that can't credibly meet this bar are
+rejected — provenance ("based on my onsite in 2026-06") helps us say yes.
+
+---
+
+## 7. Licensing, DCO sign-off & the `/ee` boundary
 
 - **The project is [Apache-2.0](LICENSE).** By contributing you agree your contribution is licensed under Apache 2.0.
 - **Sign off your commits (DCO).** We use the lightweight [Developer Certificate of Origin](https://developercertificate.org/) instead of a CLA — no paperwork, no bot. Just add a `Signed-off-by` line by committing with the `-s` flag:
@@ -126,7 +157,7 @@ This is the cleanest first contribution — see the good-first-issues for a work
 
 ---
 
-## 7. Getting help
+## 8. Getting help
 
 - 🗣️ [GitHub Discussions](https://github.com/ngoanpv/DeepInterview/discussions) for questions and design chat.
 - 🐛 [Issues](https://github.com/ngoanpv/DeepInterview/issues) for bugs/features (use the templates).
