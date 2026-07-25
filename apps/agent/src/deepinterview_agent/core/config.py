@@ -71,6 +71,20 @@ class Settings(BaseSettings):
     # unset (the default) keeps everything fully offline. Env-overridable via
     # LIGHTRAG_URL (pydantic-settings reads it by field name).
     lightrag_url: str | None = None
+    # Optional shared secret sent as ``X-Internal-Secret`` when calling the
+    # sidecar. When the sidecar has LIGHTRAG_API_SECRET set it rejects mismatches;
+    # unset here (and there) keeps the offline/local path open. Set both to the
+    # same value in a hosted deployment.
+    lightrag_api_secret: str | None = None
+
+    # --- internal API auth (opt-in) ------------------------------------------
+    # The agent API is trust-the-network by design (reads are capability-guarded
+    # by unguessable session ids). When INTERNAL_API_SECRET is set, the *write*
+    # endpoints (prep/score/coach/kb-ingest and the worker's live-result
+    # write-back) require it in the ``X-Internal-Secret`` header; unset (the
+    # default) leaves them open so zero-config local runs and tests are
+    # unaffected. The web app and the voice worker send it when configured.
+    internal_api_secret: str | None = None
 
     # --- service -------------------------------------------------------------
     agent_api_port: int = 8000
@@ -119,6 +133,20 @@ class Settings(BaseSettings):
     # override can later be threaded in via RoomMetadata.
     max_interview_duration_sec: int = 1200  # 20 min wall-clock hard stop
     max_interview_turns: int = 80  # transcript turns hard stop
+
+    # --- live: durability -----------------------------------------------------
+    # All persistence normally happens in the worker's shutdown callback. Two
+    # settings harden that against a hard crash (OOM/SIGKILL) that skips it:
+    #   shutdown_process_timeout_sec — how long the SDK lets the shutdown
+    #     callback run before killing the job process. The SDK default (10s) can
+    #     kill it mid-write (the live-result POST alone allows 20s); give it real
+    #     headroom.
+    #   transcript_flush_interval_sec — off-turn-path checkpoint cadence. Every
+    #     interval, if the transcript grew, the worker POSTs a partial result to
+    #     the live-result endpoint, so a crash loses at most one interval of
+    #     conversation instead of the whole interview. 0 disables it.
+    shutdown_process_timeout_sec: float = 60.0
+    transcript_flush_interval_sec: float = 20.0
 
     # --- post / scoring resilience -------------------------------------------
     # Per-stage timeout for the (latency-tolerant) scoring pipeline; on timeout

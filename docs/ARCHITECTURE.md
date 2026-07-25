@@ -1,9 +1,8 @@
 # Architecture
 
-A concise tour of how DeepInterview is put together. For the full specification —
-agent prompts, work packages (WP-0…WP-13), acceptance criteria, and the
-dependency graph — read [`site/AI-Interviewer-Build-Handoff.md`](../site/AI-Interviewer-Build-Handoff.md)
-(start at §16).
+A concise tour of how DeepInterview is put together. The build is organized as
+13 work packages (WP-0…WP-13); their current status and scope are tracked in the
+GitHub issues.
 
 DeepInterview is a voice-first AI mock-interview platform: it reads a
 candidate's CV + a job description, researches the target company, runs an
@@ -134,7 +133,7 @@ deepinterview/
 ├── services/lightrag/       # knowledge sidecar (FastAPI, :9621) — /kb/ingest, /kb/query
 ├── cli/                     # developer/operator CLI
 ├── skills/                  # versioned company playbooks + rubrics (Markdown + YAML)
-└── docs/ · site/            # these docs · source-of-truth spec + landing reference
+└── docs/                    # these architecture + deploy docs
 ```
 
 `packages/shared` is built **first** (WP-0): nothing else compiles until those
@@ -169,5 +168,6 @@ current question) and `get_next_question` (advance through the precomputed
 ---
 
 For depth on any of the above — the LangGraph node graphs, avatar/Veo prompts,
-scoring rubrics, pricing/gating, and the per-WP interface contracts — see
-[`site/AI-Interviewer-Build-Handoff.md`](../site/AI-Interviewer-Build-Handoff.md).
+scoring rubrics, and the per-WP interface contracts — read the code in the
+package each concerns (`apps/agent/src/deepinterview_agent/{prep,post,live}`,
+`scripts/veo`, `skills/`) and the contracts in `packages/shared`.

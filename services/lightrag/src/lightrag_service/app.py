@@ -13,10 +13,13 @@ just fastapi/uvicorn/pydantic.
 
 from __future__ import annotations
 
+import hmac
+import ipaddress
 import os
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .backend import get_backend
 from .models import (
@@ -33,20 +36,68 @@ if TYPE_CHECKING:
 _FETCH_TIMEOUT = 15.0
 
 
+def _is_public_http_url(url: str) -> bool:
+    """SSRF guard: only http(s), never loopback/private/link-local/reserved hosts.
+
+    The ingest fetch runs server-side, so a caller-supplied URL could otherwise
+    make the sidecar probe the internal network (cloud metadata, other services)
+    and reflect the body back via /kb/query. Hostname-literal checks only (no DNS
+    resolution) — pair with network egress policy for defence in depth.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    if parts.scheme not in ("http", "https"):
+        return False
+    host = (parts.hostname or "").strip("[]").lower()
+    if not host or host == "localhost" or host.endswith((".localhost", ".internal")):
+        return False
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return True  # non-IP hostname: allowed (see docstring caveat)
+    return not (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_reserved
+        or addr.is_multicast
+        or addr.is_unspecified
+    )
+
+
+async def require_secret(
+    x_internal_secret: str | None = Header(default=None),
+) -> None:
+    """Enforce ``LIGHTRAG_API_SECRET`` when configured; no-op otherwise (offline)."""
+    expected = os.environ.get("LIGHTRAG_API_SECRET")
+    if not expected:
+        return
+    if not x_internal_secret or not hmac.compare_digest(x_internal_secret, expected):
+        raise HTTPException(status_code=401, detail="Invalid or missing internal secret")
+
+
 async def _resolve_file(ref: str) -> tuple[str, str]:
     """Resolve one ``files[]`` entry to ``(source_id, text)``.
 
-    If ``ref`` looks like an http(s) URL and httpx is installed, fetch it; on any
-    failure (no httpx, network error, non-http ref) fall back to treating ``ref``
-    itself as raw text. ``source_id`` is the URL when fetched, else a short label.
+    If ``ref`` is a PUBLIC http(s) URL and httpx is installed, fetch it; on any
+    failure (no httpx, network error, non-http ref, or a refused non-public URL)
+    fall back to treating ``ref`` itself as raw text. ``source_id`` is the URL
+    when fetched, else a short label.
     """
     is_url = ref.startswith("http://") or ref.startswith("https://")
     if is_url:
+        if not _is_public_http_url(ref):
+            # Refuse SSRF targets: keep the URL as the source id but ingest no body.
+            return (ref, "")
         try:
             import httpx  # noqa: PLC0415
 
+            # Follow no redirects: an allowed public URL could otherwise 302 to an
+            # internal target, bypassing the guard above.
             async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT) as client:
-                resp = await client.get(ref)
+                resp = await client.get(ref, follow_redirects=False)
                 resp.raise_for_status()
                 return (ref, resp.text)
         except Exception:  # noqa: BLE001 - any fetch failure -> raw-text fallback
@@ -67,7 +118,11 @@ def create_app(backend: RagBackend | None = None) -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok", "backend": os.environ.get("RAG_BACKEND", "naive")}
 
-    @app.post("/kb/ingest", response_model=KbIngestResponse)
+    @app.post(
+        "/kb/ingest",
+        response_model=KbIngestResponse,
+        dependencies=[Depends(require_secret)],
+    )
     async def kb_ingest(req: KbIngestRequest) -> KbIngestResponse:
         docs: list[tuple[str, str]] = []
         for ref in req.files:
@@ -77,7 +132,11 @@ def create_app(backend: RagBackend | None = None) -> FastAPI:
         track_id = await backend.ingest(req.user_id, docs)
         return KbIngestResponse(track_id=track_id)
 
-    @app.post("/kb/query", response_model=KbQueryResponse)
+    @app.post(
+        "/kb/query",
+        response_model=KbQueryResponse,
+        dependencies=[Depends(require_secret)],
+    )
     async def kb_query(req: KbQueryRequest) -> KbQueryResponse:
         answer, citations = await backend.query(req.user_id, req.query, req.lang)
         return KbQueryResponse(answer=answer, citations=citations)

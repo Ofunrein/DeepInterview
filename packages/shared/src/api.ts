@@ -31,8 +31,12 @@ export const ScoreResponseSchema = z.object({
 });
 export type ScoreResponse = z.infer<typeof ScoreResponseSchema>;
 
+// `store_key` is the knowledge-store PARTITION key, not a user id: in the OSS
+// auth-free flow it is the `session_id` (the prep pipeline ingests under it and
+// the Study Coach retrieves with it). Named `store_key` so the contract doesn't
+// imply per-user stores that the OSS flow doesn't have.
 export const KbIngestRequestSchema = z.object({
-  user_id: z.string(),
+  store_key: z.string(),
   files: z.array(z.string()),
 });
 export type KbIngestRequest = z.infer<typeof KbIngestRequestSchema>;
@@ -43,7 +47,7 @@ export const KbIngestResponseSchema = z.object({
 export type KbIngestResponse = z.infer<typeof KbIngestResponseSchema>;
 
 export const KbQueryRequestSchema = z.object({
-  user_id: z.string(),
+  store_key: z.string(),
   query: z.string(),
   lang: LanguageSchema,
 });

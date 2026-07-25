@@ -18,13 +18,11 @@ export const config = {
      *   api/session is polled every ~1.2s by the prep screen and reads no
      *   auth; api/coach + api/upload resolve the user in-handler (route
      *   handlers can write cookies, so supabase-js refreshes the session
-     *   itself) and self-gate via @deepinterview/ee; api/health and
-     *   api/billing/webhook are identity-free:
-     *   api/health, api/session, api/coach, api/upload, api/billing/webhook.
-     * API routes that rely on the proxy refresh (api/token, api/kb) stay
-     * matched. The distribution gate in updateSession applies to pages only;
-     * API handlers self-gate with 401s.
+     *   itself) and self-gate via @deepinterview/ee; api/health is
+     *   identity-free.
+     * api/kb stays matched (kb/query resolves the user). The distribution gate
+     * in updateSession applies to pages only; API handlers self-gate with 401s.
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/health|api/session|api/coach|api/upload|api/billing/webhook).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/health|api/session|api/coach|api/upload).*)",
   ],
 };

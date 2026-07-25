@@ -206,17 +206,43 @@ def _is_fetchable_url(url: str) -> bool:
     )
 
 
+# Cap on redirect hops we follow manually (each re-validated for SSRF).
+_MAX_CV_REDIRECTS = 5
+
+
 async def _fetch_url_bytes(cv_url: str) -> tuple[bytes, str] | None:
-    """GET ``cv_url`` returning ``(bytes, content_type)``; ``None`` on any failure."""
+    """GET ``cv_url`` returning ``(bytes, content_type)``; ``None`` on any failure.
+
+    Redirects are followed MANUALLY (``follow_redirects=False``) so every hop's
+    Location is re-validated by ``_is_fetchable_url``. httpx's automatic redirect
+    following would bypass the SSRF guard entirely: a public host could 302 to
+    ``http://169.254.169.254/...`` or the internal sidecar and the body would be
+    reflected into the readable session view.
+    """
     if not _is_fetchable_url(cv_url):
         log.warning("fetch_cv: refusing non-public URL %r", cv_url)
         return None
     try:
         async with httpx.AsyncClient(timeout=_CV_FETCH_TIMEOUT_SEC) as client:
-            resp = await client.get(cv_url, follow_redirects=True)
-            resp.raise_for_status()
-            content_type = resp.headers.get("content-type", "")
-            return resp.content, content_type
+            url = cv_url
+            for _ in range(_MAX_CV_REDIRECTS + 1):
+                resp = await client.get(url, follow_redirects=False)
+                if resp.is_redirect:
+                    location = resp.headers.get("location")
+                    if not location:
+                        return None
+                    nxt = str(resp.url.join(location))
+                    if not _is_fetchable_url(nxt):
+                        log.warning(
+                            "fetch_cv: refusing redirect to non-public URL %r", nxt
+                        )
+                        return None
+                    url = nxt
+                    continue
+                resp.raise_for_status()
+                return resp.content, resp.headers.get("content-type", "")
+            log.warning("fetch_cv: too many redirects for %r", cv_url)
+            return None
     except Exception as exc:  # noqa: BLE001 - best-effort: fetch failure -> caller falls back
         log.warning("fetch_cv: could not GET %r (%s)", cv_url, exc)
         return None

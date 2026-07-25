@@ -61,7 +61,7 @@ pnpm + Turborepo. The TS **web** and Python **agent** are co-equal runtimes that
 | `skills/` | Versioned company playbooks + rubrics (Markdown + YAML frontmatter). | Markdown/YAML |
 | `scripts/` | Setup / dev / release scripts, incl. `scripts/veo/` (avatar prompts + render). | mixed |
 | `tests/` | Cross-cutting / e2e tests. | mixed |
-| `site/` | The spec docs (`AI-Interviewer-Build-Handoff.md` is the source of truth). | Markdown |
+| `docs/` | Architecture + deploy docs ([`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) is the entry point). | Markdown |
 
 **Cross-language rule:** Python cannot import the TS package, so `packages/shared` is the TS source of truth and the Pydantic models mirror it **field-for-field**. A parity check test enforces this — if you change a contract, update both sides and the parity test will tell you if they drift.
 
@@ -69,7 +69,7 @@ pnpm + Turborepo. The TS **web** and Python **agent** are co-equal runtimes that
 
 ## 3. The work-package model
 
-The build is organized as **13 work packages (WP-0…WP-13)** defined in [`site/AI-Interviewer-Build-Handoff.md` §16](site/AI-Interviewer-Build-Handoff.md). Each WP has deliverables, an interface contract, and acceptance criteria.
+The build is organized as **13 work packages (WP-0…WP-13)**. Each WP has deliverables, an interface contract, and acceptance criteria; the current status and per-package scope are tracked in the GitHub issues and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 - **Scope a PR to one WP** (or a slice of one). Small, reviewable PRs merge faster.
 - WP-0 (`packages/shared`) blocks everything — coordinate before changing a contract.

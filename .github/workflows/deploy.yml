@@ -92,17 +92,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build + push agent image
+      # The Dockerfile has two stages: `api` (the FastAPI service) and `worker`
+      # (the LiveKit voice loop, +livekit extra + baked model weights). `worker`
+      # is the LAST stage, so a build with NO `target:` would push the worker as
+      # the API image. Build and push each explicitly to its own tag.
+      - name: Build + push API image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/agent/Dockerfile
+          target: api
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ghcr.io/${{ github.repository }}-agent:latest
             ghcr.io/${{ github.repository }}-agent:${{ github.sha }}
-          # Worker images need `--extra livekit`; build that variant separately
-          # (e.g. a build-arg / dedicated stage) before deploying the worker.
+
+      - name: Build + push worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/agent/Dockerfile
+          target: worker
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/${{ github.repository }}-agent-worker:latest
+            ghcr.io/${{ github.repository }}-agent-worker:${{ github.sha }}
 
   # --- Worker -> LiveKit Cloud Agents (Singapore) / Render / Fly (sin) -------
   deploy-agent-worker:
@@ -137,9 +155,9 @@ jobs:
           # Option A — LiveKit Cloud Agents (recommended; co-located w/ media):
           #   curl -sSL https://get.livekit.io/cli | bash
           #   lk agent deploy --region sin --subdomain <project> \
-          #     --image ghcr.io/${{ github.repository }}-agent:${{ github.sha }}
+          #     --image ghcr.io/${{ github.repository }}-agent-worker:${{ github.sha }}
           #
           # Option B — Render / Fly.io (region: sin):
-          #   flyctl deploy --image ghcr.io/${{ github.repository }}-agent:${{ github.sha }} \
+          #   flyctl deploy --image ghcr.io/${{ github.repository }}-agent-worker:${{ github.sha }} \
           #     --regions sin --app deepinterview-worker
           echo "(placeholder) uncomment one option above to go live."

@@ -1,19 +1,44 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { gateRequest } from "@deepinterview/ee";
 import { presignUpload } from "@/lib/r2";
-import { isR2Configured } from "@/lib/env";
+import { isR2Configured, isSupabaseConfigured } from "@/lib/env";
 import { getUser } from "@/lib/supabase/server";
+
+// CV uploads only. Allowlist the document types the prep extractor can read
+// (markitdown handles PDF/DOCX); reject everything else so the bucket can't be
+// used as open file hosting.
+const ALLOWED_CONTENT_TYPES = new Set([
+  "application/pdf",
+  "application/x-pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  "text/plain",
+  "text/markdown",
+]);
+
+// Hard ceiling on a presigned CV upload (bytes). A résumé is a few hundred KB;
+// 10 MB is generous headroom without inviting storage abuse.
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const BodySchema = z.object({
   filename: z.string().min(1),
   content_type: z.string().min(1),
+  // Client reports the byte size so we can bound it and bind it into the
+  // signature; the presigned PUT then has to match it exactly.
+  size: z.number().int().positive().max(MAX_UPLOAD_BYTES),
 });
 
 export async function POST(request: Request) {
-  // Distribution gate (no-op in OSS): presigned uploads cost storage; a
-  // distribution with required auth rejects anonymous callers here.
+  // Presigned uploads cost storage and are a classic abuse target. When
+  // Supabase is configured (hosted), require a signed-in user — mirroring the
+  // interview token path — before handing out a PUT URL. The distribution gate
+  // (no-op in OSS) adds the required-auth check for closed distributions.
   const user = await getUser();
+  if (isSupabaseConfigured() && !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const gate = gateRequest({
     pathname: "/api/upload",
     isAuthenticated: Boolean(user),
@@ -32,14 +57,28 @@ export async function POST(request: Request) {
     );
   }
 
+  const normalizedType = (body.content_type.split(";", 1)[0] ?? "")
+    .trim()
+    .toLowerCase();
+  if (!ALLOWED_CONTENT_TYPES.has(normalizedType)) {
+    return NextResponse.json(
+      { error: "Unsupported file type. Upload a PDF, DOCX, or text CV." },
+      { status: 415 },
+    );
+  }
+
   if (!isR2Configured()) {
     return NextResponse.json({ error: "R2 not configured" }, { status: 501 });
   }
 
-  // Namespace the key and strip path separators from the supplied filename.
-  const safeName = body.filename.replace(/[/\\]/g, "_");
-  const key = `uploads/${Date.now()}-${safeName}`;
+  // Random, unguessable key segment (not a millisecond timestamp) so an
+  // uploaded CV can't be found by guessing the URL. Strip path separators from
+  // the display name we keep for readability.
+  const safeName = body.filename.replace(/[/\\]/g, "_").slice(0, 100);
+  const key = `uploads/${randomUUID()}-${safeName}`;
 
-  const result = await presignUpload(key, body.content_type);
+  // Sign the exact content-type the client will PUT (so the signature matches);
+  // the allowlist check above ran on its normalized form.
+  const result = await presignUpload(key, body.content_type, body.size);
   return NextResponse.json(result);
 }

@@ -1,6 +1,6 @@
 """Cross-language parity: Zod-generated JSON Schema vs Pydantic model schema.
 
-For each of the 28 models we reduce both JSON Schemas to a shallow shape
+For each registered model we reduce both JSON Schemas to a shallow shape
 {field_name: (type_category, is_required)} and assert they match. The
 normalization is deliberately forgiving on structure (it resolves $refs,
 collapses int/number, and unwraps nullable unions) so the only thing that can
@@ -116,4 +116,25 @@ def test_schema_parity(name: str) -> None:
         f"Schema parity mismatch for {name} on fields {differing}:\n"
         f"  zod={ {k: zod_norm.get(k) for k in differing} }\n"
         f"  pydantic={ {k: pyd_norm.get(k) for k in differing} }"
+    )
+
+
+@pytest.mark.skipif(
+    not _SCHEMAS_PRESENT,
+    reason="Zod JSON Schemas not generated; run `pnpm --filter @deepinterview/shared gen:schema`",
+)
+def test_every_generated_schema_has_a_pydantic_mirror() -> None:
+    """Reverse coverage: a TS-only model (new schema/*.json with no Pydantic
+    mirror in MODELS) must fail loudly, not silently escape parity. The forward
+    test only iterates MODELS, so without this a new Zod schema is never checked.
+    """
+    generated = {p.stem for p in SCHEMA_DIR.glob("*.json")}
+    registered = set(MODELS)
+    missing_mirror = sorted(generated - registered)
+    stale_entries = sorted(registered - generated)
+    assert not missing_mirror, (
+        f"Generated Zod schemas with no Pydantic mirror in MODELS: {missing_mirror}"
+    )
+    assert not stale_entries, (
+        f"MODELS entries with no generated Zod schema: {stale_entries}"
     )

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
-    "user_id": {
+    "store_key": {
       "type": "string"
     },
     "query": {
@@ -25,7 +25,7 @@
     }
   },
   "required": [
-    "user_id",
+    "store_key",
     "query",
     "lang"
   ]

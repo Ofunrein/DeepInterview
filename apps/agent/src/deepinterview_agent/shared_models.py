@@ -319,7 +319,9 @@ class ScoreResponse(BaseModel):
 
 class KbIngestRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    user_id: str
+    # Knowledge-store PARTITION key (the session_id in the OSS auth-free flow),
+    # NOT a user id. Mirrors api.ts.
+    store_key: str
     files: list[str]
 
 
@@ -330,7 +332,8 @@ class KbIngestResponse(BaseModel):
 
 class KbQueryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    user_id: str
+    # Knowledge-store partition key (the session_id in the OSS flow). Mirrors api.ts.
+    store_key: str
     query: str
     lang: Language
 

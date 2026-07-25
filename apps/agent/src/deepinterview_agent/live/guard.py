@@ -34,6 +34,23 @@ _WRAP_UP_LINE = (
     "Thank you — your feedback will be ready shortly."
 )
 
+# Localized closing lines, keyed by primary-language code. The guard speaks this
+# via TTS, so it must match the interview's language (golden rule 3) — a
+# Vietnamese interview shouldn't end in English. Falls back to the English line
+# for any language not listed here.
+_WRAP_UP_LINES: dict[str, str] = {
+    "en": _WRAP_UP_LINE,
+    "vi": (
+        "Đã hết thời gian cho buổi phỏng vấn, chúng ta kết thúc ở đây nhé. "
+        "Cảm ơn bạn — phản hồi của bạn sẽ sẵn sàng trong giây lát."
+    ),
+}
+
+
+def wrap_up_line(language: str | None) -> str:
+    """The closing line for ``language`` (English fallback)."""
+    return _WRAP_UP_LINES.get((language or "en").lower(), _WRAP_UP_LINE)
+
 
 class SessionGuard:
     """Enforce hard duration/turn ceilings on a live session; never blocks a turn.
@@ -52,6 +69,7 @@ class SessionGuard:
         max_turns: int,
         interval_sec: float = 2.0,
         time_fn: Callable[[], float] | None = None,
+        wrap_up_line: str | None = None,
     ) -> None:
         self._session = session
         self._ud = userdata
@@ -59,6 +77,7 @@ class SessionGuard:
         self._max_turns = int(max_turns)
         self._interval = interval_sec
         self._time = time_fn or time.monotonic
+        self._wrap_up_line = wrap_up_line or _WRAP_UP_LINE
         self._task: asyncio.Task[None] | None = None
         self._started_at: float = 0.0
         self.tripped: bool = False
@@ -90,7 +109,7 @@ class SessionGuard:
         """Say a closing line (best-effort) then shut the session down gracefully."""
         log.warning("session_guard: %s for %s — wrapping up", reason, self._ud.session_id)
         with contextlib.suppress(Exception):
-            await self._session.say(_WRAP_UP_LINE)  # type: ignore[attr-defined]
+            await self._session.say(self._wrap_up_line)  # type: ignore[attr-defined]
         with contextlib.suppress(Exception):
             self._session.shutdown(drain=True)  # type: ignore[attr-defined]
 

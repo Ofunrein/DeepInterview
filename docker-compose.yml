@@ -12,8 +12,11 @@ name: deepinterview
 services:
   lightrag:
     build: ./services/lightrag
+    # Bind to loopback only: the sidecar is an internal service reached by the
+    # web/agent containers over the compose network (http://lightrag:9621), not
+    # from the host LAN. Set LIGHTRAG_API_SECRET to gate it if you must expose it.
     ports:
-      - "9621:9621"
+      - "127.0.0.1:9621:9621"
     env_file:
       - path: .env
         required: false
@@ -43,8 +46,12 @@ services:
       - 0.0.0.0
       - --port
       - "8000"
+    # Bind to loopback only: the agent API is trust-the-network (write endpoints
+    # are gated by INTERNAL_API_SECRET when set) and is reached by the web
+    # container over the compose network (http://agent-api:8000). Publish it
+    # beyond the host deliberately (and set INTERNAL_API_SECRET) for real hosting.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       # Reach the knowledge sidecar over the compose network (overrides the
       # .env localhost default, which would resolve to this container itself;

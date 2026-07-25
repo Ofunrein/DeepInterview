@@ -92,10 +92,11 @@ typecheck, lint, JS + Python tests (agent **and** lightrag sidecar), and
 `docker compose config -q`.
 
 `.github/workflows/deploy.yml` is the **gated** deploy (manual
-`workflow_dispatch` or push to `main`). It is safe by default — each deploy step
-is skipped unless its secrets are present (checked **inside** a step via `env:`,
-since GitHub does not allow `secrets.*` in a job-level `if:`), and the
-destructive CLI commands are commented out until you opt in.
+`workflow_dispatch` only — there is intentionally no `push:` trigger until the
+deploy steps are wired). It is safe by default — each deploy step is skipped
+unless its secrets are present (checked **inside** a step via `env:`, since
+GitHub does not allow `secrets.*` in a job-level `if:`), and the destructive CLI
+commands are commented out until you opt in.
 
 Jobs:
 
@@ -144,8 +145,8 @@ on them):
 - **LLM tracing & cost → Langfuse.** Set `LANGFUSE_PUBLIC_KEY` +
   `LANGFUSE_SECRET_KEY`. Traces every prep/post/live LLM call with token counts
   → per-interview cost, latency per node, and prompt/response inspection. This
-  is the single pane for the **~$0.50–1.00 / 15-min interview** unit cost
-  (handoff §12) and where you watch it trend down as you optimize.
+  is the single pane for the per-interview unit cost and where you watch it
+  trend down as you optimize.
 - **Voice / turn latency → LiveKit Cloud metrics.** STT → LLM → TTS turn timing
   and session health, co-located in SGP.
 - **Errors → Sentry.** Set `SENTRY_DSN` (server) / `NEXT_PUBLIC_SENTRY_DSN`
@@ -170,14 +171,14 @@ on them):
 
 ---
 
-## 7. Cost note (handoff §12)
+## 7. Cost note
 
-Voice has real marginal cost (~$0.50–1.00 per 15-min interview until optimized).
-Keep the live loop lean (one fast model, precomputed plan, no blocking I/O on
-the turn path), enforce the per-tier interview cap in code, and watch the
-per-interview cost trend in Langfuse. Singapore co-location keeps RTT — and thus
-session length and retry cost — down. See `Pricing-Business-Model.md` for the
-per-tier caps that must be enforced in billing/feature-flag code.
+Voice has real marginal cost per interview until optimized. Keep the live loop
+lean (one fast model, precomputed plan, no blocking I/O on the turn path), and
+watch the per-interview cost trend in Langfuse. Singapore co-location keeps RTT
+— and thus session length and retry cost — down. The open-source build is
+uncapped (self-host, bring-your-own-keys); per-tier interview caps and billing
+are a hosted concern that lives in the private cloud fork, not here.
 
 ---
 
@@ -189,4 +190,3 @@ per-tier caps that must be enforced in billing/feature-flag code.
 - [ ] Worker image built with `--extra livekit`; deployed to LiveKit Cloud SGP.
 - [ ] Healthchecks green: web `/api/health`, agent-api `/health`, lightrag `/health`.
 - [ ] (Optional) `SENTRY_DSN` + `LANGFUSE_*` set; uncomment deploy CLI steps.
-```

@@ -67,9 +67,13 @@ export async function POST(request: Request) {
   }
 
   try {
+    const secret = serverEnv.internalApiSecret;
     const upstream = await fetch(`${serverEnv.agentApiUrl}/api/coach/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(secret ? { "x-internal-secret": secret } : {}),
+      },
       body: JSON.stringify({
         session_id: body.session_id,
         query: body.query,

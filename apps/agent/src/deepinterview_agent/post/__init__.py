@@ -174,6 +174,22 @@ async def _maybe_distill_skill(session_id: str, deps: Deps) -> None:
         log.exception("post: skill distiller failed for session %s", session_id)
 
 
+# Per-session scoring locks. Scoring is triggered from the API process (both the
+# worker's shutdown POST /api/score and a report page opening land here), so an
+# in-process lock serializes the common concurrent case and prevents two runs of
+# the paid LLM pipeline racing to overwrite the same scorecard. Keyed by session
+# id; created lazily.
+_scoring_locks: dict[str, asyncio.Lock] = {}
+
+
+def _scoring_lock(session_id: str) -> asyncio.Lock:
+    lock = _scoring_locks.get(session_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _scoring_locks[session_id] = lock
+    return lock
+
+
 async def run_score(req: ScoreRequest, deps: Deps) -> ScoreCard:
     """Score an interview session and return (and persist) its ``ScoreCard``.
 
@@ -183,6 +199,14 @@ async def run_score(req: ScoreRequest, deps: Deps) -> ScoreCard:
     session stuck mid-scoring). Whenever a context exists the resulting card is
     persisted and the session is marked ``complete``.
     """
+    # Serialize concurrent scorings of the same session (see _scoring_locks): the
+    # loser waits and then hits the idempotency short-circuit below instead of
+    # re-running the pipeline.
+    async with _scoring_lock(req.session_id):
+        return await _run_score_locked(req, deps)
+
+
+async def _run_score_locked(req: ScoreRequest, deps: Deps) -> ScoreCard:
     # Idempotency: scoring re-runs the full paid LLM pipeline, so a retry /
     # double-click against an already-scored session returns the persisted card
     # instead of re-billing and overwriting it.

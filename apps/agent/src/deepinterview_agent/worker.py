@@ -32,7 +32,9 @@ from .core.deps import build_deps
 from .core.logging import get_logger
 from .live import state
 from .live.director import Director
+from .live.flusher import TranscriptFlusher
 from .live.guard import SessionGuard
+from .live.guard import wrap_up_line as guard_wrap_up_line
 from .live.interviewer import Interviewer
 from .live.state import InterviewUserdata
 from .shared_models import InterviewContext, RoomMetadata, ScoreRequest
@@ -183,6 +185,38 @@ def build_stt(settings, language="en", mixed=False):  # noqa: ANN001, ANN201 - l
         return soniox.STT(api_key=settings.soniox_api_key)
     log.warning("build_stt: no configured STT provider/key; using Deepgram default")
     return _deepgram_stt(lang, model)
+
+
+def _require_live_providers(settings) -> None:  # noqa: ANN001
+    """Fail fast when a selected real live provider is missing its credential.
+
+    The live loop cannot recover from a missing/typo'd key mid-call — the
+    candidate joins, then the first turn errors (or the whole session runs on a
+    keyless default). Catch it before the session starts. Mock/unset providers
+    are left alone (the offline path); only *selected real* providers are
+    checked, so this raises solely on genuine misconfiguration.
+    """
+    missing: list[str] = []
+    llm = (settings.llm_provider or "").lower()
+    if llm == "gemini" and not settings.gemini_api_key:
+        missing.append("GEMINI_API_KEY (LLM_PROVIDER=gemini)")
+    elif llm == "openai" and not settings.openai_api_key:
+        missing.append("OPENAI_API_KEY (LLM_PROVIDER=openai)")
+    stt = (settings.stt_provider or "").lower()
+    if stt == "deepgram" and not settings.deepgram_api_key:
+        missing.append("DEEPGRAM_API_KEY (STT_PROVIDER=deepgram)")
+    elif stt == "soniox" and not settings.soniox_api_key:
+        missing.append("SONIOX_API_KEY (STT_PROVIDER=soniox)")
+    tts = (settings.tts_provider or "").lower()
+    if tts == "cartesia" and not settings.cartesia_api_key:
+        missing.append("CARTESIA_API_KEY (TTS_PROVIDER=cartesia)")
+    elif tts == "elevenlabs" and not settings.elevenlabs_api_key:
+        missing.append("ELEVENLABS_API_KEY (TTS_PROVIDER=elevenlabs)")
+    if missing:
+        raise RuntimeError(
+            "Live interview cannot start — missing provider credentials: "
+            + "; ".join(missing)
+        )
 
 
 def build_llm(settings):  # noqa: ANN001, ANN201
@@ -340,6 +374,12 @@ def _api_base(settings) -> str:  # noqa: ANN001
     return (settings.agent_api_url or f"http://localhost:{settings.agent_api_port}").rstrip("/")
 
 
+def _internal_headers(settings) -> dict[str, str]:  # noqa: ANN001
+    """Auth header for the agent API's guarded write endpoints when configured."""
+    secret = getattr(settings, "internal_api_secret", None)
+    return {"X-Internal-Secret": secret} if secret else {}
+
+
 def _session_id_from_room(ctx: JobContext) -> str:
     """Derive the session id from room metadata JSON, falling back to room name."""
     metadata = getattr(ctx.room, "metadata", None)
@@ -364,7 +404,7 @@ async def _load_context_via_api(session_id: str, settings) -> InterviewContext |
     url = f"{_api_base(settings)}/api/session/{session_id}"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url)
+            resp = await client.get(url)  # GET read path is unguarded
     except Exception:  # noqa: BLE001
         log.exception("worker: failed to reach %s", url)
         return None
@@ -384,6 +424,10 @@ async def _load_context_via_api(session_id: str, settings) -> InterviewContext |
 async def entrypoint(ctx: JobContext) -> None:
     settings = get_settings()
     deps = build_deps(settings)
+
+    # Fail fast on a misconfigured live provider before the candidate connects,
+    # rather than mid-interview on the first turn.
+    _require_live_providers(settings)
 
     await ctx.connect()
     session_id = _session_id_from_room(ctx)
@@ -428,6 +472,7 @@ async def entrypoint(ctx: JobContext) -> None:
         userdata,
         max_duration_sec=settings.max_interview_duration_sec,
         max_turns=settings.max_interview_turns,
+        wrap_up_line=guard_wrap_up_line(lang_mode.primary),
     )
 
     # Cost discipline (Golden Rule #5): collect per-session STT/LLM/TTS usage so
@@ -459,12 +504,41 @@ async def entrypoint(ctx: JobContext) -> None:
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 resp = await client.post(
-                    f"{api_base}/api/session/{session_id}/live-result", json=payload
+                    f"{api_base}/api/session/{session_id}/live-result",
+                    json=payload,
+                    headers=_internal_headers(settings),
                 )
             return resp.status_code == 200
         except Exception:  # noqa: BLE001
             log.exception("worker: live-result POST failed for %s", session_id)
             return False
+
+    async def _flush_checkpoint(context, transcript: list[dict]) -> None:  # noqa: ANN001
+        """Off-path partial persist for the TranscriptFlusher (non-terminal).
+
+        Best-effort: any failure is swallowed by the flusher. Never marks the
+        session terminal — a checkpoint is a mid-interview snapshot, and the
+        live-result endpoint refuses writes once a session is terminal anyway.
+        """
+        import httpx  # noqa: PLC0415
+
+        payload = {
+            "context": context.model_dump(),
+            "transcript": transcript,
+            "status": None,
+        }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(
+                f"{api_base}/api/session/{session_id}/live-result",
+                json=payload,
+                headers=_internal_headers(settings),
+            )
+
+    flusher = TranscriptFlusher(
+        userdata,
+        _flush_checkpoint,
+        interval_sec=settings.transcript_flush_interval_sec,
+    )
 
     async def _persist_via_repo(has_answers: bool) -> bool:
         """Direct-store fallback (correct when both processes share Supabase)."""
@@ -495,6 +569,9 @@ async def entrypoint(ctx: JobContext) -> None:
         return True
 
     async def _on_shutdown() -> None:
+        # Stop the checkpointer first so it can't race the final, authoritative
+        # persist below.
+        await flusher.aclose()
         await guard.aclose()
         await director.aclose()
 
@@ -539,7 +616,11 @@ async def entrypoint(ctx: JobContext) -> None:
             req = ScoreRequest(session_id=session_id)
             score_timeout = httpx.Timeout(10.0, read=600.0)
             async with httpx.AsyncClient(timeout=score_timeout) as client:
-                await client.post(f"{api_base}/api/score", json=req.model_dump())
+                await client.post(
+                    f"{api_base}/api/score",
+                    json=req.model_dump(),
+                    headers=_internal_headers(settings),
+                )
         except Exception:  # noqa: BLE001
             log.exception("worker: scoring trigger failed for %s", session_id)
 
@@ -556,6 +637,9 @@ async def entrypoint(ctx: JobContext) -> None:
     # Start the guard only once the session is live (it calls session.say /
     # session.shutdown); it runs detached until a ceiling trips or shutdown.
     guard.start()
+    # Checkpoint the transcript off the turn path so a hard crash (before the
+    # shutdown callback) loses at most one interval, not the whole interview.
+    flusher.start()
 
 
 def main() -> None:
@@ -569,6 +653,11 @@ def main() -> None:
             ws_url=settings.livekit_url,
             api_key=settings.livekit_api_key,
             api_secret=settings.livekit_api_secret,
+            # All persistence (transcript + context + scoring trigger) happens in
+            # the shutdown callback; the SDK default 10s can kill the job process
+            # mid-write (the live-result POST alone allows 20s). Give shutdown
+            # real headroom so a graceful drain finishes persisting.
+            shutdown_process_timeout=settings.shutdown_process_timeout_sec,
         )
     )
 

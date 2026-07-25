@@ -4,14 +4,14 @@
 unless a LightRAG URL is configured, in which case it returns :class:`HttpKnowledge`
 which POSTs to ``${LIGHTRAG_URL}/kb/query``.
 
-The URL is read from ``settings.lightrag_url`` if present; ``Settings`` does not
-currently define that field (config.py is owned elsewhere), so in practice we fall
-back to ``os.environ["LIGHTRAG_URL"]``. This keeps the default fully offline.
+The URL is read from ``settings.lightrag_url`` (``LIGHTRAG_URL`` env). Unset (the
+default) keeps everything fully offline. When ``settings.lightrag_api_secret`` is
+set it is sent as the ``X-Internal-Secret`` header so a locked-down sidecar
+accepts the call.
 """
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from ...shared_models import Citation
@@ -61,9 +61,13 @@ class KnowledgeClient(Protocol):
 class HttpKnowledge:
     """Calls the knowledge sidecar's ``POST /kb/query`` over HTTP (httpx)."""
 
-    def __init__(self, base_url: str) -> None:
+    def __init__(self, base_url: str, secret: str | None = None) -> None:
         # Normalise so we can safely join the path.
         self._base_url = base_url.rstrip("/")
+        self._secret = secret
+
+    def _headers(self) -> dict[str, str]:
+        return {"X-Internal-Secret": self._secret} if self._secret else {}
 
     async def search(
         self, user_id: str, query: str, lang: str
@@ -72,7 +76,9 @@ class HttpKnowledge:
 
         payload = {"user_id": user_id, "query": query, "lang": lang}
         async with httpx.AsyncClient(timeout=_QUERY_TIMEOUT) as client:
-            resp = await client.post(f"{self._base_url}/kb/query", json=payload)
+            resp = await client.post(
+                f"{self._base_url}/kb/query", json=payload, headers=self._headers()
+            )
             resp.raise_for_status()
             data = resp.json()
         answer = data.get("answer", "")
@@ -84,7 +90,9 @@ class HttpKnowledge:
 
         payload = {"user_id": user_id, "files": files}
         async with httpx.AsyncClient(timeout=_INGEST_TIMEOUT) as client:
-            resp = await client.post(f"{self._base_url}/kb/ingest", json=payload)
+            resp = await client.post(
+                f"{self._base_url}/kb/ingest", json=payload, headers=self._headers()
+            )
             resp.raise_for_status()
             data = resp.json()
         return data.get("track_id", _stub_track_id(user_id, files))
@@ -122,18 +130,10 @@ class MockKnowledge:
         return _stub_track_id(user_id, files)
 
 
-def _lightrag_url(settings: Settings) -> str | None:
-    """Resolve the sidecar URL: prefer a ``settings.lightrag_url`` field, else env."""
-    url = getattr(settings, "lightrag_url", None)
-    if not url:
-        url = os.environ.get("LIGHTRAG_URL")
-    return url or None
-
-
 def get_knowledge(settings: Settings) -> KnowledgeClient:
     """Choose a knowledge client. ``MockKnowledge`` unless a LightRAG URL is set."""
-    url = _lightrag_url(settings)
+    url = getattr(settings, "lightrag_url", None) or None
     if url:
-        return HttpKnowledge(url)
+        return HttpKnowledge(url, getattr(settings, "lightrag_api_secret", None))
     log.info("No LIGHTRAG_URL configured; using MockKnowledge (offline).")
     return MockKnowledge()
