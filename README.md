@@ -43,6 +43,10 @@ Practicing in your head (or in a text chat) isn't how interviews work. DeepInter
 
 ## News
 
+> - **[2026.07]** **Now on Gemini 3.6 Flash + LiveKit Agents 1.6.** Prep and scoring run on **Gemini 3.6 Flash**; the live voice stack moved to livekit-agents 1.6 (Gemini 3-ready function calling on the turn path), and live captions now read as one paragraph per speaker instead of per-fragment lines.
+> - **[2026.07]** **The open-source build is fully uncapped — billing removed.** Self-host with your own keys: no plan gates, no interview caps, no billing tables. Payments live only in the hosted edition; the OSS schema got leaner.
+> - **[2026.07]** **Hardening release.** Opt-in shared-secret auth for the agent API and knowledge sidecar, locked-down Supabase row policies, and periodic transcript checkpointing so a killed process loses seconds of your interview, not all of it.
+> - **[2026.07]** **The study coach now grounds answers in *your* session.** Prep ingests your CV, the JD, and company research into the knowledge sidecar keyed by session — coach answers cite your own materials, not generic tips.
 > - **[2026.06]** **Live voice interviews run on real providers.** The full loop — personalized prep (real Gemini CV/JD analysis + company research) → real-time voice interview on LiveKit (Deepgram STT · Gemini · Cartesia/ElevenLabs TTS) → scored report — now runs end to end, with semantic end-of-turn detection and noise-robust, word-gated barge-in.
 > - **[2026.06]** **`docker compose up` verified.** All images build; the base stack (web + agent API + knowledge sidecar) comes up healthy with **zero keys** on mock adapters; `--profile live` adds the voice worker.
 > - **[2026.06]** **Relicensed to Apache 2.0** — permissive core, bring-your-own keys, no sign-in.
