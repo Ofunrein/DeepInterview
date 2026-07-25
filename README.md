@@ -13,10 +13,13 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-4338CA.svg)](apps/agent)
 [![pnpm](https://img.shields.io/badge/pnpm-workspace-4338CA.svg)](pnpm-workspace.yaml)
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/fT7Ecbyq)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-4338CA.svg)](CONTRIBUTING.md)
 
 **UI in English + Tiếng Việt · voice interviews in 7 languages incl. Vietnamese (more as packs land) · no sign-in required to self-host**
 
 [Why](#why-deepinterview) · [Features](#features) · [Quickstart](#quickstart) · [Architecture](#architecture) · [Community](#community) · [Contributing](#contributing)
+
+**Contributions wanted** — [interview question-bank packs](https://github.com/ngoanpv/DeepInterview/issues/38) · [language packs & provider adapters](docs/GOOD_FIRST_ISSUES.md) · your packs get asked in real interviews, and no API keys are needed to develop.
 
 </div>
 
@@ -57,7 +60,7 @@ _(Changelog is intentionally pre-launch and honest — no "1,000 stars" or shipp
 
 ## Releases
 
-No tagged release yet — DeepInterview is pre-`v0.1`. Watch [Releases](https://github.com/ngoanpv/DeepInterview/releases) and the News section above. Citation metadata lives in [`CITATION.cff`](CITATION.cff).
+Current release: **[v0.1.0](https://github.com/ngoanpv/DeepInterview/releases/tag/v0.1.0)** (2026-07-25) — the first tagged milestone: the full prep → live voice interview → scoring → coach loop verified on real providers, uncapped billing-free OSS build, hardened API surface, and the community playbook library wired into the question planner. See [Releases](https://github.com/ngoanpv/DeepInterview/releases) for notes; citation metadata lives in [`CITATION.cff`](CITATION.cff).
 
 ## Features
 
