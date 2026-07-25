@@ -235,30 +235,50 @@ function LiveSession({
     if (isMicrophoneEnabled) onMicError(null);
   }, [isMicrophoneEnabled, onMicError]);
 
-  // Map streaming transcriptions → turns. "You" when the segment belongs to the
-  // local participant, otherwise the interviewer (agent / avatar worker). STT
-  // finalizes speech in short segments, so consecutive segments from the same
-  // speaker are merged into one turn — one paragraph per speaking turn, not a
-  // new "You" label per sentence fragment.
+  // Typed answers bypass STT, so nothing in `transcriptions` ever carries
+  // them — without a local echo the typed answer is invisible and the
+  // interviewer appears to reply to nothing.
+  const [typedTurns, setTypedTurns] = React.useState<
+    { id: string; text: string; at: number }[]
+  >([]);
+
+  // Map streaming transcriptions + typed answers → turns, in send/receive
+  // order. "You" when the segment belongs to the local participant, otherwise
+  // the interviewer (agent / avatar worker). STT finalizes speech in short
+  // segments, so consecutive segments from the same speaker are merged into
+  // one turn — one paragraph per speaking turn, not a new "You" label per
+  // sentence fragment.
   const turns: Turn[] = React.useMemo(() => {
     const localIdentity = localParticipant.identity;
-    const merged: Turn[] = [];
+    const entries: (Turn & { at: number })[] = [];
     for (const t of transcriptions) {
       const text = t.text.trim();
       if (!text) continue;
-      const role =
-        t.participantInfo.identity === localIdentity
-          ? ("candidate" as const)
-          : ("interviewer" as const);
+      entries.push({
+        at: t.streamInfo.timestamp ?? 0,
+        id: t.streamInfo.id,
+        role:
+          t.participantInfo.identity === localIdentity
+            ? ("candidate" as const)
+            : ("interviewer" as const),
+        text,
+      });
+    }
+    for (const t of typedTurns) {
+      entries.push({ at: t.at, id: t.id, role: "candidate", text: t.text });
+    }
+    entries.sort((a, b) => a.at - b.at);
+    const merged: Turn[] = [];
+    for (const entry of entries) {
       const last = merged[merged.length - 1];
-      if (last?.role === role) {
-        last.text = `${last.text} ${text}`;
+      if (last?.role === entry.role) {
+        last.text = `${last.text} ${entry.text}`;
       } else {
-        merged.push({ id: t.streamInfo.id, role, text });
+        merged.push({ id: entry.id, role: entry.role, text: entry.text });
       }
     }
     return merged;
-  }, [transcriptions, localParticipant.identity]);
+  }, [transcriptions, typedTurns, localParticipant.identity]);
 
   async function toggleMute() {
     try {
@@ -282,6 +302,11 @@ function LiveSession({
   }
 
   function sendText(text: string) {
+    // Optimistic local echo — the agent does not stream typed input back.
+    setTypedTurns((prev) => [
+      ...prev,
+      { id: `typed-${Date.now()}-${prev.length}`, text, at: Date.now() },
+    ]);
     // Text streams on "lk.chat" are what the LiveKit agent's RoomIO consumes
     // (register_text_stream_handler(TOPIC_CHAT)). A raw data-channel publish on
     // a custom topic is never delivered to the agent — the typed answer would

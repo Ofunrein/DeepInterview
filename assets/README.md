@@ -21,6 +21,6 @@ Brand + marketing assets for the README hero and docs.
 ## demo.gif
 
 Hero demo for the main README: live interview room (Dana speaking, captions
-streaming, text-input answer, adaptive follow-up) → scored report. Recorded
+streaming, typed answer echoed as YOU, adaptive follow-up) → scored report. Recorded
 from the real app via browser automation on the offline demo CV/JD (no real
-candidate PII), 1502×717, 16 frames, ~2.1 MB. Re-record after major UI changes.
+candidate PII), 1554×784, 14 frames, ~1.9 MB. Re-record after major UI changes.
