@@ -1,4 +1,5 @@
 import { Container } from "@/components/ui/container";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { GITHUB_URL, DOCS_URL } from "@/lib/site";
 
 type FooterLink = { href: string; label: string; external?: boolean };
@@ -60,9 +61,7 @@ export function Footer() {
         <div className="mb-9 grid grid-cols-2 gap-[30px] md:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
             <div className="mb-3 flex items-center gap-[9px]">
-              <span className="grid h-[22px] w-[22px] place-items-center rounded-md border-[1.5px] border-ink font-serif text-sm leading-none">
-                D
-              </span>
+              <BrandMark size={22} />
               <span className="text-[17px] font-semibold tracking-[-0.01em]">
                 DeepInterview
               </span>

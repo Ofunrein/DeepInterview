@@ -2,6 +2,7 @@ import Link from "next/link";
 import { features } from "@deepinterview/ee";
 import { Container } from "@/components/ui/container";
 import { buttonClasses } from "@/components/ui/button";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { MobileMenu } from "@/components/landing/mobile-menu";
 import { GITHUB_URL } from "@/lib/site";
 
@@ -17,9 +18,7 @@ export function Nav() {
     <nav className="sticky top-0 z-50 border-b border-line bg-paper/80 backdrop-blur-md">
       <Container className="flex h-[66px] items-center justify-between">
         <a href="#top" className="flex items-center gap-[9px]">
-          <span className="grid h-[22px] w-[22px] place-items-center rounded-md border-[1.5px] border-ink font-serif text-sm leading-none">
-            D
-          </span>
+          <BrandMark size={22} />
           <span className="text-[17px] font-semibold tracking-[-0.01em]">
             DeepInterview
           </span>
