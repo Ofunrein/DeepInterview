@@ -1,4 +1,9 @@
-# Veo 3.1 avatar render (WP-9)
+# Veo 3.1 avatar render — reference implementation (WP-9)
+
+> **One way, not the way.** Avatar packs can be produced with any generator —
+> the vendor-neutral contract, IP checklist, and submission flow live in
+> [`docs/AVATARS.md`](../../docs/AVATARS.md). This script satisfies that
+> contract with Google Veo 3.1 for anyone holding a Gemini API key.
 
 One-time pipeline that turns the IP-safe prompts in `prompts.ts` into the
 pre-rendered idle/speaking loops the web app crossfades in `<AvatarStage>`.
