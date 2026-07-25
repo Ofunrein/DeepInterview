@@ -17,7 +17,7 @@
 
 **UI in English + Tiếng Việt · voice interviews in 7 languages incl. Vietnamese (more as packs land) · no sign-in required to self-host**
 
-[Why](#why-deepinterview) · [Features](#features) · [Quickstart](#quickstart) · [Architecture](#architecture) · [Community](#community) · [Contributing](#contributing)
+[Quickstart](#quickstart) · [Why](#why-deepinterview) · [Features](#features) · [Architecture](#architecture) · [Community](#community) · [Contributing](#contributing)
 
 **Contributions wanted** — [interview question-bank packs](https://github.com/ngoanpv/DeepInterview/issues/38) · [language packs & provider adapters](docs/GOOD_FIRST_ISSUES.md) · your packs get asked in real interviews, and no API keys are needed to develop.
 
@@ -33,57 +33,6 @@
 DeepInterview closes the **prep ⇄ interview ⇄ feedback** loop: heavy reasoning runs *before* the call (read your CV + the JD, research the company, build an adaptive question plan), a lean real-time voice loop runs the interview, then strong models score it and route you into a study coach for your weak areas.
 
 > **Honest status:** this is an **early open build**. The contracts, prep/live/post pipelines, web screens, and CLI are implemented and **run offline with mock adapters** (no API keys, tests green). Real-time voice, web research, and video avatars need provider keys. `docker compose up` brings up the full base stack (web + agent API + knowledge sidecar, healthy with zero keys); the live voice worker runs via `docker compose --profile live up` once LiveKit keys are set. We mark what's done honestly, per feature, throughout this README.
-
-## Why DeepInterview
-
-Practicing in your head (or in a text chat) isn't how interviews work. DeepInterview is **voice-first** — you answer out loud, in real time, like the real thing — and built to be **owned, not rented**:
-
-- **A real conversation, not a form** — a cascaded **STT → LLM → TTS** loop on LiveKit with barge-in, semantic end-of-turn detection, and adaptive follow-ups, so the interviewer reacts to *what you actually said*.
-- **Prepared like a real interviewer** — before the call it reads your CV + the JD, researches the company, and precomputes a personalized question plan with rubrics; the live loop stays fast because the thinking already happened.
-- **Feedback you can act on** — per-competency rubric scores, model answers, and a study coach that targets exactly the gaps the interview exposed (a closed prep ⇄ interview ⇄ feedback loop).
-- **Multilingual by design** — UI in EN+VI, voice interviews in 7 languages including Vietnamese; STT/TTS route by language automatically, and each language is a pluggable pack.
-- **Yours end to end** — Apache 2.0, fully self-hostable, **bring-your-own keys** for every provider (or run 100% offline on mock adapters), and **no sign-in required**: no account, no login, no data leaving your box unless you choose a provider.
-
-## News
-
-> - **[2026.07]** **Now on Gemini 3.6 Flash + LiveKit Agents 1.6.** Prep and scoring run on **Gemini 3.6 Flash**; the live voice stack moved to livekit-agents 1.6 (Gemini 3-ready function calling on the turn path), and live captions now read as one paragraph per speaker instead of per-fragment lines.
-> - **[2026.07]** **The open-source build is fully uncapped — billing removed.** Self-host with your own keys: no plan gates, no interview caps, no billing tables. Payments live only in the hosted edition; the OSS schema got leaner.
-> - **[2026.07]** **Hardening release.** Opt-in shared-secret auth for the agent API and knowledge sidecar, locked-down Supabase row policies, and periodic transcript checkpointing so a killed process loses seconds of your interview, not all of it.
-> - **[2026.07]** **The study coach now grounds answers in *your* session.** Prep ingests your CV, the JD, and company research into the knowledge sidecar keyed by session — coach answers cite your own materials, not generic tips.
-> - **[2026.06]** **Live voice interviews run on real providers.** The full loop — personalized prep (real Gemini CV/JD analysis + company research) → real-time voice interview on LiveKit (Deepgram STT · Gemini · Cartesia/ElevenLabs TTS) → scored report — now runs end to end, with semantic end-of-turn detection and noise-robust, word-gated barge-in.
-> - **[2026.06]** **`docker compose up` verified.** All images build; the base stack (web + agent API + knowledge sidecar) comes up healthy with **zero keys** on mock adapters; `--profile live` adds the voice worker.
-> - **[2026.06]** **Relicensed to Apache 2.0** — permissive core, bring-your-own keys, no sign-in.
-> - **[2026.06]** Early build: cross-language `InterviewContext` contract (TS ↔ Pydantic) round-trips; prep/live/post pipelines and all web screens run offline with mock adapters.
-> - **[next]** The hero demo GIF, hosted live demo, and more language packs.
-
-_(Changelog is intentionally pre-launch and honest — no "1,000 stars" or shipped-feature claims until they're true.)_
-
-## Releases
-
-Current release: **[v0.2.0](https://github.com/ngoanpv/DeepInterview/releases/tag/v0.2.0)** (2026-07-25) — the full prep → live voice interview → scoring → coach loop verified on real providers, uncapped billing-free OSS build, hardened API surface, and the community playbook library wired into the question planner. See [Releases](https://github.com/ngoanpv/DeepInterview/releases) for notes; citation metadata lives in [`CITATION.cff`](CITATION.cff).
-
-## Features
-
-- **Real-time voice interview** — cascaded **STT → LLM → TTS** on LiveKit (not speech-to-speech), so you get a full transcript, per-component control, and predictable cost. Barge-in and seeded follow-ups keep it conversational.
-- **English-first & multilingual** — every user-facing string is i18n'd (UI shipped in EN + VI); language is a per-session setting and the voice pipeline routes STT/TTS by language (see the [provider matrix](#provider-matrix) below). Each language is a pluggable "pack."
-- **Personalized prep** — a LangGraph pipeline reads your CV + the JD, researches the target company, diffs the gap, and a **Question Planner** precomputes the plan, difficulty curve, rubrics, and seeded follow-ups — so the live loop stays fast. Uploaded **CV documents (PDF/DOCX) are parsed to text server-side with [Microsoft markitdown](https://github.com/microsoft/markitdown), with a Gemini multimodal fallback for scanned/image PDFs**.
-- **Scored feedback** — a rubric-based evaluator + language coach write a per-competency `ScoreCard` with strengths, gaps, model answers, and next steps that map straight back to the questions you were asked.
-- **Prep Coach** *(in progress)* — turns your gaps into an LLM study loop (plan → drills → Socratic chat). Grounded + cited answers are **optional**: set `LIGHTRAG_URL` (or wire a managed RAG behind the same adapter) to ground responses in your own uploaded materials; by default the coach answers honestly without fabricated citations.
-- **Cost-smart avatars** *(in progress)* — the crossfade system + persona fallbacks are built; pre-rendered **Veo 3.1** idle/speaking loops drop in as the assets land (until then it renders a calm gradient stage). Original anime / superhero / recruiter personas (no named IP), so runtime cost is **CDN-only — no per-minute avatar fees**.
-- **Provider-agnostic & self-hostable** — a clean adapter layer (LLM / search / embeddings, with a **mock adapter** for offline dev). Bring your own keys (Soniox/Deepgram, Cartesia/ElevenLabs, Gemini/GPT, or OSS faster-whisper / XTTS / Qwen3).
-- **Open source (Apache 2.0)** — self-host the whole thing, permissively licensed.
-
-## Provider matrix
-
-**Every stage is swappable — bring your own vendor.** The live voice loop is **cascaded STT → LLM → TTS** over LiveKit; you pick each vendor with a single env var (`STT_PROVIDER` / `TTS_PROVIDER` / `LLM_PROVIDER`) plus its key. No code changes, no vendor lock-in — providers sit behind a clean adapter interface, and adding a new one is a small PR (see [CONTRIBUTING.md](CONTRIBUTING.md)). With no keys set, every stage falls back to an offline **mock adapter** so the full loop runs in CI and on day-one clones.
-
-| Stage | Choose with | Vendors (pick one) | No key set |
-|---|---|---|---|
-| **STT** | `STT_PROVIDER` | **Deepgram nova-3** (default) · Soniox | mock adapter (faster-whisper planned) |
-| **TTS** | `TTS_PROVIDER` | **Cartesia sonic** (default) · ElevenLabs Flash v2.5 · Gemini TTS | mock adapter (XTTS planned) |
-| **LLM** | `LLM_PROVIDER` | **Gemini live tier** (default) · OpenAI | mock adapter (Qwen3 planned) |
-
-> **Language routing is automatic — not something you configure.** If your chosen TTS doesn't cover the session language (e.g., Vietnamese on Cartesia), the agent reroutes that session to ElevenLabs or Gemini TTS when a key is present. Cartesia covers en, es, zh, fr, de, ja, pt, hi, it, ko, nl, pl, ru, sv, tr; Deepgram nova-3 covers English + many languages (Vietnamese validation in progress).
 
 ## Quickstart
 
@@ -139,6 +88,54 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev setup and the provider-a
 
 </details>
 
+## Why DeepInterview
+
+Practicing in your head (or in a text chat) isn't how interviews work. DeepInterview is **voice-first** — you answer out loud, in real time, like the real thing — and built to be **owned, not rented**:
+
+- **A real conversation, not a form** — a cascaded **STT → LLM → TTS** loop on LiveKit with barge-in, semantic end-of-turn detection, and adaptive follow-ups, so the interviewer reacts to *what you actually said*.
+- **Prepared like a real interviewer** — before the call it reads your CV + the JD, researches the company, and precomputes a personalized question plan with rubrics; the live loop stays fast because the thinking already happened.
+- **Feedback you can act on** — per-competency rubric scores, model answers, and a study coach that targets exactly the gaps the interview exposed (a closed prep ⇄ interview ⇄ feedback loop).
+- **Multilingual by design** — UI in EN+VI, voice interviews in 7 languages including Vietnamese; STT/TTS route by language automatically, and each language is a pluggable pack.
+- **Yours end to end** — Apache 2.0, fully self-hostable, **bring-your-own keys** for every provider (or run 100% offline on mock adapters), and **no sign-in required**: no account, no login, no data leaving your box unless you choose a provider.
+
+## Features
+
+- **Personalized prep** — a LangGraph pipeline reads your CV + the JD, researches the target company, diffs the gap, and a **Question Planner** precomputes the plan, difficulty curve, rubrics, and seeded follow-ups — so the live loop stays fast. Uploaded **CV documents (PDF/DOCX) are parsed to text server-side with [Microsoft markitdown](https://github.com/microsoft/markitdown), with a Gemini multimodal fallback for scanned/image PDFs**.
+- **Community playbook library** — question-bank packs in [`skills/`](skills/) (versioned Markdown + YAML) are retrieved by role/level and injected into the Question Planner: packs the community writes get asked in real interviews. Validate yours with `pnpm deepinterview skills lint`.
+- **Scored feedback** — a rubric-based evaluator + language coach write a per-competency `ScoreCard` with strengths, gaps, model answers, and next steps that map straight back to the questions you were asked.
+- **Prep Coach** *(in progress)* — turns your gaps into an LLM study loop (plan → drills → Socratic chat). Grounded + cited answers are **optional**: set `LIGHTRAG_URL` (or wire a managed RAG behind the same adapter) to ground responses in your own uploaded materials; by default the coach answers honestly without fabricated citations.
+- **Cost-smart avatars** *(in progress)* — the crossfade system + persona fallbacks are built; pre-rendered **Veo 3.1** idle/speaking loops drop in as the assets land (until then it renders a calm gradient stage). Original anime / superhero / recruiter personas (no named IP), so runtime cost is **CDN-only — no per-minute avatar fees**.
+
+## Provider matrix
+
+**Every stage is swappable — bring your own vendor.** The live voice loop is **cascaded STT → LLM → TTS** over LiveKit; you pick each vendor with a single env var (`STT_PROVIDER` / `TTS_PROVIDER` / `LLM_PROVIDER`) plus its key. No code changes, no vendor lock-in — providers sit behind a clean adapter interface, and adding a new one is a small PR (see [CONTRIBUTING.md](CONTRIBUTING.md)). With no keys set, every stage falls back to an offline **mock adapter** so the full loop runs in CI and on day-one clones.
+
+| Stage | Choose with | Vendors (pick one) | No key set |
+|---|---|---|---|
+| **STT** | `STT_PROVIDER` | **Deepgram nova-3** (default) · Soniox | mock adapter (faster-whisper planned) |
+| **TTS** | `TTS_PROVIDER` | **Cartesia sonic** (default) · ElevenLabs Flash v2.5 · Gemini TTS | mock adapter (XTTS planned) |
+| **LLM** | `LLM_PROVIDER` | **Gemini live tier** (default) · OpenAI | mock adapter (Qwen3 planned) |
+
+> **Language routing is automatic — not something you configure.** If your chosen TTS doesn't cover the session language (e.g., Vietnamese on Cartesia), the agent reroutes that session to ElevenLabs or Gemini TTS when a key is present. Cartesia covers en, es, zh, fr, de, ja, pt, hi, it, ko, nl, pl, ru, sv, tr; Deepgram nova-3 covers English + many languages (Vietnamese validation in progress).
+
+## News
+
+> - **[2026.07]** **Now on Gemini 3.6 Flash + LiveKit Agents 1.6.** Prep and scoring run on **Gemini 3.6 Flash**; the live voice stack moved to livekit-agents 1.6 (Gemini 3-ready function calling on the turn path), and live captions now read as one paragraph per speaker instead of per-fragment lines.
+> - **[2026.07]** **The open-source build is fully uncapped — billing removed.** Self-host with your own keys: no plan gates, no interview caps, no billing tables. Payments live only in the hosted edition; the OSS schema got leaner.
+> - **[2026.07]** **Hardening release.** Opt-in shared-secret auth for the agent API and knowledge sidecar, locked-down Supabase row policies, and periodic transcript checkpointing so a killed process loses seconds of your interview, not all of it.
+> - **[2026.07]** **The study coach now grounds answers in *your* session.** Prep ingests your CV, the JD, and company research into the knowledge sidecar keyed by session — coach answers cite your own materials, not generic tips.
+> - **[2026.06]** **Live voice interviews run on real providers.** The full loop — personalized prep (real Gemini CV/JD analysis + company research) → real-time voice interview on LiveKit (Deepgram STT · Gemini · Cartesia/ElevenLabs TTS) → scored report — now runs end to end, with semantic end-of-turn detection and noise-robust, word-gated barge-in.
+> - **[2026.06]** **`docker compose up` verified.** All images build; the base stack (web + agent API + knowledge sidecar) comes up healthy with **zero keys** on mock adapters; `--profile live` adds the voice worker.
+> - **[2026.06]** **Relicensed to Apache 2.0** — permissive core, bring-your-own keys, no sign-in.
+> - **[2026.06]** Early build: cross-language `InterviewContext` contract (TS ↔ Pydantic) round-trips; prep/live/post pipelines and all web screens run offline with mock adapters.
+> - **[next]** The hero demo GIF, hosted live demo, and more language packs.
+
+_(Changelog is intentionally pre-launch and honest — no "1,000 stars" or shipped-feature claims until they're true.)_
+
+## Releases
+
+Current release: **[v0.2.0](https://github.com/ngoanpv/DeepInterview/releases/tag/v0.2.0)** (2026-07-25) — the full prep → live voice interview → scoring → coach loop verified on real providers, uncapped billing-free OSS build, hardened API surface, and the community playbook library wired into the question planner. See [Releases](https://github.com/ngoanpv/DeepInterview/releases) for notes; citation metadata lives in [`CITATION.cff`](CITATION.cff).
+
 ## Architecture
 
 The spine of the system is a **prep / live / post** split (strong async models before and after the call; one lean fast model on the live turn path). All three phases thread a single shared `InterviewContext` "blackboard" — written in prep, read+appended in live, read in post.
@@ -166,42 +163,9 @@ flowchart LR
   shared -.contracts.-> agent
 ```
 
-**Request flow — prep → live → post:**
+**Module boundaries:** `apps/web` owns UI/auth/upload/token and knows nothing about LLM/STT/TTS · `apps/agent` owns the voice loop + prep/post pipelines + avatar render util · `services/lightrag` owns the knowledge base · `cli/` owns first-run setup · **`packages/shared` is the cross-language contract** (TS source of truth, mirrored as Pydantic).
 
-```mermaid
-flowchart TB
-  in["CV · JD · Company"] --> orch["LangGraph Orchestrator (WP-6)"]
-  subgraph PREP["PREP — async · parallel · strong models"]
-    orch --> cva["CV Analysis"]
-    orch --> jda["JD Analysis"]
-    orch --> cr["Company Research (web)"]
-    cva --> gap["Gap / Matching"]
-    jda --> gap
-    cr --> gap
-    gap --> qp["Question Planner (star)"]
-  end
-  qp --> ctx[("InterviewContext<br/>shared blackboard · Postgres")]
-  ctx --> stt
-  subgraph LIVE["LIVE — realtime &lt;800ms · one fast model · LiveKit (WP-5)"]
-    stt["STT"] --> intv["Interviewer Agent"]
-    intv --> tts["TTS"]
-    intv -.handoff.-> cod["Coding-round Agent"]
-    intv -.handoff.-> beh["Behavioral / STAR Agent"]
-    dir["Director — background, never blocks a turn"]
-    ava["AvatarStage · Veo loops (WP-9)"]
-  end
-  intv -->|"transcript + answers"| ctx
-  ctx --> eval
-  subgraph POST["POST — async · reasoning models (WP-7)"]
-    eval["Evaluator / Scorer"] --> lc["Language Coach EN/VI"]
-    lc --> rpt["Report Generator -> ScoreCard (WP-3)"]
-    rpt --> pc["Prep Coach re-plan (WP-4/8)"]
-    sd["Skill Distiller -> review queue (WP-10)"]
-  end
-  pc -.->|"closes the loop"| ctx
-```
-
-**Module boundaries:** `apps/web` owns UI/auth/upload/token and knows nothing about LLM/STT/TTS · `apps/agent` owns the voice loop + prep/post pipelines + avatar render util · `services/lightrag` owns the knowledge base · `cli/` owns first-run setup · **`packages/shared` is the cross-language contract** (TS source of truth, mirrored as Pydantic). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Full request-flow diagrams and the multi-agent design live in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Using DeepInterview
 
