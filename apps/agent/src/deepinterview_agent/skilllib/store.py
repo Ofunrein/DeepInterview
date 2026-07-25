@@ -143,33 +143,98 @@ def list_skills(skills_dir: str | Path | None = None) -> list[Skill]:
     return skills
 
 
+#: Company value that marks a pack as a fallback for ANY company (issue #38).
+GENERIC_COMPANY = "generic"
+
+#: promoted packs outrank in-review ones, which outrank drafts.
+_STATUS_RANK = {"promoted": 0, "review": 1, "draft": 2}
+
+#: ``confidence`` halves every N days after ``last_verified`` (SCHEMA.md).
+_CONFIDENCE_HALF_LIFE_DAYS = 180.0
+
+
+def _role_tokens(text: str) -> set[str]:
+    """Lowercased alphanumeric tokens of a role string or slug.
+
+    ``"Senior Backend Engineer"`` and ``"backend-engineer"`` both tokenize into
+    comparable sets, so pack slugs can match live JD titles.
+    """
+    tokens: set[str] = set()
+    current: list[str] = []
+    for ch in text.lower():
+        if ch.isalnum():
+            current.append(ch)
+        elif current:
+            tokens.add("".join(current))
+            current = []
+    if current:
+        tokens.add("".join(current))
+    return tokens
+
+
+def effective_confidence(
+    fm: SkillFrontmatter, *, today: _dt.date | None = None
+) -> float:
+    """``confidence`` decayed by the age of ``last_verified``.
+
+    Half-life ``_CONFIDENCE_HALF_LIFE_DAYS``: a pack verified 180 days ago is
+    worth half its stated confidence. An unparseable date applies no decay.
+    """
+    try:
+        verified = _dt.date.fromisoformat(fm.last_verified[:10])
+    except ValueError:
+        return fm.confidence
+    now = today or _dt.datetime.now(tz=_dt.UTC).date()
+    age_days = max(0, (now - verified).days)
+    return fm.confidence * 0.5 ** (age_days / _CONFIDENCE_HALF_LIFE_DAYS)
+
+
 def find_relevant(
     skills_dir: str | Path | None = None,
     *,
     company: str,
     role: str,
     level: str | None = None,
+    limit: int = 2,
 ) -> list[Skill]:
-    """Return live skills matching ``company`` + ``role`` (and ``level`` if given).
+    """Targeted, ranked retrieval for the prep planner (top ``limit`` packs).
 
-    Matching is case-insensitive and exact on company/role/level. Deprecated
-    skills are excluded. Only the matching playbook(s) are returned — callers
-    must not all-load the library.
+    Matching (all case-insensitive):
+      - **role** — the pack's slug tokens must be a subset of the query's
+        tokens, so a ``role: backend-engineer`` pack matches the live JD title
+        ``"Senior Backend Engineer"``.
+      - **company** — packs for the exact company rank above ``generic``
+        fallback packs; packs for *other* companies never match.
+      - **level** — soft: an exact level match ranks higher, but a senior pack
+        still serves a staff query when nothing closer exists.
+
+    Ranking: company tier → level match → status (promoted > review > draft)
+    → age-decayed confidence. ``deprecated`` packs are excluded. Retrieval
+    stays targeted — only the winning packs are returned, never the library.
     """
     want_company = company.strip().lower()
-    want_role = role.strip().lower()
+    want_role = _role_tokens(role)
     want_level = level.strip().lower() if level else None
 
-    matches: list[Skill] = []
+    scored: list[tuple[int, int, int, float, str, Skill]] = []
     for skill in list_skills(skills_dir):
         fm = skill.frontmatter
         if fm.status == "deprecated":
             continue
-        if fm.company.strip().lower() != want_company:
+        pack_company = fm.company.strip().lower()
+        if pack_company == want_company:
+            company_tier = 0
+        elif pack_company == GENERIC_COMPANY:
+            company_tier = 1
+        else:
             continue
-        if fm.role.strip().lower() != want_role:
+        pack_role = _role_tokens(fm.role)
+        if not pack_role or not pack_role <= want_role:
             continue
-        if want_level is not None and fm.level.strip().lower() != want_level:
-            continue
-        matches.append(skill)
-    return matches
+        level_tier = 0 if want_level is None or fm.level.strip().lower() == want_level else 1
+        status_tier = _STATUS_RANK.get(fm.status, 3)
+        scored.append(
+            (company_tier, level_tier, status_tier, -effective_confidence(fm), fm.id, skill)
+        )
+    scored.sort(key=lambda item: item[:5])
+    return [item[5] for item in scored[:limit]]

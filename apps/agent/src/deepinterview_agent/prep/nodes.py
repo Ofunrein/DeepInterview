@@ -206,27 +206,59 @@ async def gap_matching(state: PrepState, deps: Deps) -> PrepState:
     return {"gap": gap}
 
 
-def _skill_library_hint(company: str, role: str, level: str) -> str:
-    """Compact summary of any matching live skill playbook (WP-10 retrieval).
+# Body sections a pack contributes to the planner prompt, and the total budget.
+# Bounded so a growing library can never blow up prep prompt size (golden rule:
+# keep prompts compact).
+_HINT_SECTIONS = frozenset({"round structure", "question bank", "signals", "pitfalls"})
+_HINT_CHAR_BUDGET = 1500
+
+
+def _extract_hint_sections(body_md: str) -> str:
+    """Pull the planner-relevant ``##`` sections out of a pack body, in order."""
+    sections: list[tuple[str, list[str]]] = []
+    current: list[str] | None = None
+    for line in body_md.splitlines():
+        if line.startswith("## "):
+            title = line[3:].strip()
+            current = [] if title.lower() in _HINT_SECTIONS else None
+            if current is not None:
+                sections.append((title, current))
+        elif current is not None:
+            current.append(line)
+    parts = [f"{title}:\n" + "\n".join(lines).strip() for title, lines in sections if lines]
+    return "\n".join(p for p in parts if not p.endswith(":\n"))
+
+
+def _skill_library_hint(
+    company: str, role: str, level: str, skills_dir: str | None = None
+) -> str:
+    """Playbook context for the planner (WP-10 retrieval): provenance header
+    plus the pack's question bank / signals / pitfalls, capped at
+    ``_HINT_CHAR_BUDGET`` characters.
 
     Best-effort and additive: any failure (missing/un-parseable library, import
     error) returns an empty string so prep never depends on the skill store.
     """
     try:
-        from ..skilllib import find_relevant
+        from ..skilllib import effective_confidence, find_relevant
 
-        skills = find_relevant(company=company, role=role, level=level)
+        skills = find_relevant(skills_dir, company=company, role=role, level=level)
         if not skills:
             return ""
-        lines: list[str] = []
-        for skill in skills[:2]:
+        blocks: list[str] = []
+        for skill in skills:
             fm = skill.frontmatter
-            lines.append(
-                f"- {fm.company} {fm.role} ({fm.level}); competencies: "
-                f"{', '.join(fm.competency) or 'n/a'}; "
-                f"confidence {fm.confidence:.2f} from {fm.source_runs} run(s)"
+            header = (
+                f"### {fm.company} · {fm.role} · {fm.level} "
+                f"[{fm.status}; confidence {effective_confidence(fm):.2f} "
+                f"from {fm.source_runs} run(s); verified {fm.last_verified}]"
             )
-        return "\n".join(lines)
+            extract = _extract_hint_sections(skill.body_md)
+            blocks.append(f"{header}\n{extract}" if extract else header)
+        hint = "\n\n".join(blocks)
+        if len(hint) > _HINT_CHAR_BUDGET:
+            hint = hint[:_HINT_CHAR_BUDGET].rsplit("\n", 1)[0] + "\n[truncated]"
+        return hint
     except Exception:  # noqa: BLE001 - retrieval is strictly best-effort
         return ""
 
@@ -248,7 +280,14 @@ async def question_planner(state: PrepState, deps: Deps) -> PrepState:
         level=state["job"].seniority,
     )
     if hint:
-        user = f"{user}\n\nKNOWN PLAYBOOK SIGNALS (from prior interviews):\n{hint}"
+        user = (
+            f"{user}\n\n"
+            "PLAYBOOK REFERENCE (from the interview skill library — adapt to THIS "
+            "candidate and JD; prefer reusing its strongest questions over "
+            "inventing near-duplicates, and never copy questions that don't fit "
+            "the gap analysis):\n"
+            f"{hint}"
+        )
     try:
         plan = await deps.llm.complete_json(
             system=system, user=user, schema=QuestionPlan
