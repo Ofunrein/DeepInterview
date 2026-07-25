@@ -21,12 +21,20 @@ from .distiller import propose_skill
 from .models import Skill, SkillDraft, SkillFrontmatter
 from .promote import promote
 from .scrub import scrub_pii
-from .store import find_relevant, list_skills, load_skill, save_skill, slugify
+from .store import (
+    effective_confidence,
+    find_relevant,
+    list_skills,
+    load_skill,
+    save_skill,
+    slugify,
+)
 
 __all__ = [
     "Skill",
     "SkillDraft",
     "SkillFrontmatter",
+    "effective_confidence",
     "find_relevant",
     "list_skills",
     "load_skill",

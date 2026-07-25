@@ -11,12 +11,16 @@ polluted with candidate data.
 from __future__ import annotations
 
 import asyncio
+import datetime as _dt
 from pathlib import Path
+
+import pytest
 
 from deepinterview_agent.core.deps import build_deps
 from deepinterview_agent.prep import run_prep
 from deepinterview_agent.shared_models import AnswerRecord, LanguageMode, PrepRequest
 from deepinterview_agent.skilllib import (
+    effective_confidence,
     find_relevant,
     load_skill,
     promote,
@@ -99,12 +103,110 @@ def test_find_relevant_matches_company_and_role_only(tmp_path: Path) -> None:
     assert len(hits) == 1
     assert hits[0].frontmatter.company == "ExampleCorp"
 
-    # The non-matching skill is never returned.
+    # A skill for a *different* company is never returned.
     assert find_relevant(tmp_path, company="OtherCorp", role="backend-engineer") == []
-    # Level filter narrows further.
-    assert find_relevant(
+    # Level is soft: a staff query still gets the senior pack (ranked, not excluded).
+    staff_hits = find_relevant(
         tmp_path, company="ExampleCorp", role="backend-engineer", level="staff"
-    ) == []
+    )
+    assert [h.frontmatter.level for h in staff_hits] == ["senior"]
+
+
+def test_find_relevant_matches_jd_titles_and_generic_fallback(tmp_path: Path) -> None:
+    """Pack slugs match live JD titles; `company: generic` serves any company."""
+    generic = _sample_skill().model_copy(deep=True)
+    generic.frontmatter.id = "generic-backend-engineer-senior"
+    generic.frontmatter.company = "generic"
+    save_skill(generic, tmp_path / "generic-backend-engineer-senior.md")
+
+    # Live pipeline values: real company name + JD title, not slugs.
+    hits = find_relevant(tmp_path, company="Stripe", role="Senior Backend Engineer")
+    assert [h.frontmatter.id for h in hits] == ["generic-backend-engineer-senior"]
+
+    # A role the JD title doesn't contain never matches.
+    assert find_relevant(tmp_path, company="Stripe", role="Data Scientist") == []
+
+    # An exact-company pack outranks the generic fallback.
+    exact = _sample_skill().model_copy(deep=True)
+    exact.frontmatter.id = "stripe-backend-engineer-senior"
+    exact.frontmatter.company = "Stripe"
+    save_skill(exact, tmp_path / "stripe-backend-engineer-senior.md")
+    hits = find_relevant(tmp_path, company="Stripe", role="Senior Backend Engineer")
+    assert hits[0].frontmatter.id == "stripe-backend-engineer-senior"
+
+
+def test_find_relevant_ranks_status_then_decayed_confidence(tmp_path: Path) -> None:
+    """`promoted` beats `draft` even at lower confidence; staleness decays rank."""
+    draft = _sample_skill().model_copy(deep=True)
+    draft.frontmatter.id = "generic-a"
+    draft.frontmatter.company = "generic"
+    draft.frontmatter.status = "draft"
+    draft.frontmatter.confidence = 0.9
+    save_skill(draft, tmp_path / "a.md")
+
+    promoted = _sample_skill().model_copy(deep=True)
+    promoted.frontmatter.id = "generic-b"
+    promoted.frontmatter.company = "generic"
+    promoted.frontmatter.status = "promoted"
+    promoted.frontmatter.confidence = 0.4
+    save_skill(promoted, tmp_path / "b.md")
+
+    hits = find_relevant(tmp_path, company="Acme", role="Backend Engineer", limit=2)
+    assert [h.frontmatter.id for h in hits] == ["generic-b", "generic-a"]
+
+    # Same status: a freshly verified pack outranks a stale equal-confidence one.
+    stale = _sample_skill().model_copy(deep=True)
+    stale.frontmatter.id = "generic-stale"
+    stale.frontmatter.company = "generic"
+    stale.frontmatter.status = "promoted"
+    stale.frontmatter.last_verified = "2020-01-01"
+    save_skill(stale, tmp_path / "stale.md")
+    fresh = _sample_skill().model_copy(deep=True)
+    fresh.frontmatter.id = "generic-fresh"
+    fresh.frontmatter.company = "generic"
+    fresh.frontmatter.status = "promoted"
+    fresh.frontmatter.last_verified = _dt.datetime.now(tz=_dt.UTC).date().isoformat()
+    save_skill(fresh, tmp_path / "fresh.md")
+    hits = find_relevant(tmp_path, company="Acme", role="Backend Engineer", limit=4)
+    assert hits.index(next(h for h in hits if h.frontmatter.id == "generic-fresh")) < hits.index(
+        next(h for h in hits if h.frontmatter.id == "generic-stale")
+    )
+
+
+def test_effective_confidence_halves_at_half_life() -> None:
+    fm = _sample_skill().frontmatter.model_copy(
+        update={"confidence": 0.8, "last_verified": "2026-01-01"}
+    )
+    today = _dt.date(2026, 6, 30)  # 180 days later
+    assert effective_confidence(fm, today=today) == pytest.approx(0.4, rel=1e-3)
+    # Unparseable date: no decay rather than a crash.
+    fm_bad = fm.model_copy(update={"last_verified": "unknown"})
+    assert effective_confidence(fm_bad, today=today) == 0.8
+
+
+def test_skill_hint_injects_question_bank_into_planner_context(tmp_path: Path) -> None:
+    """The planner hint carries the pack BODY (question bank), not just metadata."""
+    from deepinterview_agent.prep.nodes import _skill_library_hint
+
+    generic = _sample_skill().model_copy(deep=True)
+    generic.frontmatter.id = "generic-backend-engineer-senior"
+    generic.frontmatter.company = "generic"
+    save_skill(generic, tmp_path / "generic.md")
+
+    hint = _skill_library_hint(
+        company="Stripe",
+        role="Senior Backend Engineer",
+        level="senior",
+        skills_dir=str(tmp_path),
+    )
+    assert "Design a multi-region rate limiter." in hint  # question bank line
+    assert "Jumps to code before clarifying requirements." in hint  # pitfalls line
+    assert len(hint) <= 1600  # bounded
+
+    # Empty library -> empty hint, never an error.
+    assert _skill_library_hint(
+        company="Stripe", role="X", level="senior", skills_dir=str(tmp_path / "none")
+    ) == ""
 
 
 def test_find_relevant_loads_committed_example() -> None:

@@ -11,3 +11,9 @@ promoted from real interview runs (`{company} × {role} × {level}`).
   human/LLM review gate to avoid compounding hallucinated claims.
 
 `example-corp-backend-senior.md` is a **fictional** sample showing the format.
+
+The `generic-*.md` packs are hand-curated, company-agnostic fallbacks (matched
+for any company when no company-specific pack exists) — use them as the model
+for contributing new question banks (see issue #38). Set `company: generic`, a
+kebab-case `role` slug, and `status: draft` on contributions; maintainers flip
+status on review. See SCHEMA.md for how retrieval matches and ranks packs.
