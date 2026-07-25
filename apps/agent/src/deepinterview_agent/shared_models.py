@@ -21,7 +21,7 @@ MasteryLevel = Literal["weak", "developing", "solid", "strong"]
 
 def _validate_localized_text(v: dict[str, str]) -> dict[str, str]:
     if not isinstance(v, dict):
-        raise ValueError("LocalizedText must be an object")
+        raise ValueError("LocalizedText must be an object")  # noqa: TRY004 - pydantic validators must raise ValueError
     if not v.get("en"):
         raise ValueError("LocalizedText must include a non-empty 'en' entry")
     for k in v:

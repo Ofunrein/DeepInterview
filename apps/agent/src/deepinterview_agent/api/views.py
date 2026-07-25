@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..shared_models import InterviewContext, ScoreCard
 
-__all__ = ["SessionView", "SessionStatus", "PROGRESS_STEPS"]
+__all__ = ["PROGRESS_STEPS", "SessionStatus", "SessionView"]
 
 # "complete" is the terminal state set by the post-interview scoring step
 # (see post/__init__.py); it must be a valid status or GET /api/session/{id}

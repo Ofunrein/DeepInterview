@@ -28,12 +28,14 @@ class Settings(BaseSettings):
     #   gemini_model      = analytic/background (prep, scoring) — newest Gemini 3
     #                       Flash (has "thinking"); verified for structured output.
     #   gemini_model_live = the real-time interviewer — lowest-latency flash-lite.
-    gemini_model: str = "gemini-3-flash-preview"
-    # Live tier MUST be a Gemini 2.x model: the live loop uses function tools, and
-    # Gemini 3 requires "thought_signatures" in function-call turns that
-    # livekit-plugins-google 1.5.x does not thread yet (-> 400 INVALID_ARGUMENT).
-    # 2.5-flash-lite is low-latency and function-calls cleanly. Override: GEMINI_MODEL_LIVE.
-    gemini_model_live: str = "gemini-2.5-flash-lite"
+    # Ids verified against the models API 2026-07-25 (project golden rule #6).
+    gemini_model: str = "gemini-3.6-flash"
+    # Newest flash-lite. Gemini 3.x on the live path needs livekit-plugins-google
+    # >=1.6, which threads the "thought_signature" through function-call turns
+    # (1.5.x dropped it -> 400 INVALID_ARGUMENT after the first save_answer).
+    # Pin an exact id here, never a "-latest" alias: the live loop's function
+    # calling must not change models under us. Override: GEMINI_MODEL_LIVE.
+    gemini_model_live: str = "gemini-3.5-flash-lite"
     # Gemini native TTS — the fallback voice for languages Cartesia doesn't cover
     # (e.g. Vietnamese). gemini-2.5-flash-preview-tts speaks 24 languages incl.
     # vi-VN. Override via GEMINI_TTS_MODEL when a newer TTS model ships.

@@ -87,7 +87,7 @@ class _RecordingKnowledge:
     def __init__(self) -> None:
         self.ingests: list[tuple[str, list[str]]] = []
 
-    async def search(self, user_id: str, query: str, lang: str):  # noqa: ANN201
+    async def search(self, user_id: str, query: str, lang: str):
         return ("", [])
 
     async def ingest(self, user_id: str, files: list[str]) -> str:

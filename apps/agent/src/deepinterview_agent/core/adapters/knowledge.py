@@ -72,7 +72,7 @@ class HttpKnowledge:
     async def search(
         self, user_id: str, query: str, lang: str
     ) -> tuple[str, list[Citation]]:
-        import httpx  # noqa: PLC0415 - httpx is a core agent dep; lazy keeps import cheap
+        import httpx
 
         payload = {"user_id": user_id, "query": query, "lang": lang}
         async with httpx.AsyncClient(timeout=_QUERY_TIMEOUT) as client:
@@ -86,7 +86,7 @@ class HttpKnowledge:
         return (answer, citations)
 
     async def ingest(self, user_id: str, files: list[str]) -> str:
-        import httpx  # noqa: PLC0415 - httpx is a core agent dep; lazy keeps import cheap
+        import httpx
 
         payload = {"user_id": user_id, "files": files}
         async with httpx.AsyncClient(timeout=_INGEST_TIMEOUT) as client:

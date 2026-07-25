@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from deepinterview_agent.core.adapters.knowledge import (
     HttpKnowledge,
     KnowledgeClient,
@@ -16,6 +18,14 @@ from deepinterview_agent.core.adapters.knowledge import (
 )
 from deepinterview_agent.core.config import Settings
 from deepinterview_agent.shared_models import Citation
+
+
+@pytest.fixture(autouse=True)
+def _no_local_dotenv(monkeypatch, tmp_path):
+    """Settings() reads ``.env`` cwd-relative — a dev machine's LIGHTRAG_URL
+    must not leak into the get_knowledge() default-selection tests."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("LIGHTRAG_URL", raising=False)
 
 
 def _run(coro):

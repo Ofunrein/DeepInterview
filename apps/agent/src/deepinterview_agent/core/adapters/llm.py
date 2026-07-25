@@ -54,7 +54,7 @@ def _loads_json(text: str) -> Any:
     an interview that asks one question literally titled "mock". ``raw_decode``
     returns the FIRST complete JSON value and ignores anything after it.
     """
-    import re  # noqa: PLC0415
+    import re
 
     t = (text or "").strip()
     # Strip a wrapping ```json ... ``` / ``` ... ``` markdown fence, if present.
@@ -85,16 +85,18 @@ class GeminiLLM:
     def __init__(
         self,
         api_key: str,
-        model: str = "gemini-3-flash-preview",
+        model: str,
         timeout_sec: float = _DEFAULT_TIMEOUT_SEC,
     ) -> None:
+        # No default model: ids retire fast, so the current id lives in ONE
+        # place (Settings.gemini_model) and must be passed in explicitly.
         self._api_key = api_key
         self._model = model
         self._timeout = timeout_sec
 
     def _client(self) -> Any:
         try:
-            from google import genai  # noqa: PLC0415
+            from google import genai
         except ImportError as exc:  # pragma: no cover - depends on optional SDK
             raise RuntimeError(
                 "google-genai is not installed; install the 'gemini' extra."
@@ -137,16 +139,18 @@ class OpenAILLM:
     def __init__(
         self,
         api_key: str,
-        model: str = "gpt-5.1-mini",
+        model: str,
         timeout_sec: float = _DEFAULT_TIMEOUT_SEC,
     ) -> None:
+        # No default model — see GeminiLLM.__init__; Settings.openai_model is
+        # the single source of truth.
         self._api_key = api_key
         self._model = model
         self._timeout = timeout_sec
 
     def _client(self) -> Any:
         try:
-            from openai import AsyncOpenAI  # noqa: PLC0415
+            from openai import AsyncOpenAI
         except ImportError as exc:  # pragma: no cover - depends on optional SDK
             raise RuntimeError(
                 "openai is not installed; install the 'openai' extra."

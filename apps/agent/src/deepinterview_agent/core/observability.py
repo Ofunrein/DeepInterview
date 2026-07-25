@@ -1,3 +1,7 @@
+# ruff: noqa: BLE001, S110, PYI034, PYI046
+# This module is a degradation shim by design: every provider call is wrapped in
+# a blind catch-and-continue (tracing must never break a prep run or live turn),
+# and the no-op stand-ins deliberately mirror provider types, not PYI idioms.
 """WP-12 — gated, provider-agnostic observability for the agent.
 
 Design (see docs/DEPLOY.md):
@@ -76,7 +80,7 @@ def init_observability(settings: Any | None = None) -> None:
     dsn = _sentry_dsn(settings)
     if dsn:
         try:
-            import sentry_sdk  # noqa: PLC0415
+            import sentry_sdk
 
             sentry_sdk.init(
                 dsn=dsn,
@@ -92,7 +96,7 @@ def init_observability(settings: Any | None = None) -> None:
     public, secret = _langfuse_keys(settings)
     if public and secret:
         try:
-            import langfuse  # noqa: F401, PLC0415
+            import langfuse  # noqa: F401
 
             _log.info("Langfuse credentials present; LLM tracing available")
         except ImportError:
@@ -104,12 +108,12 @@ def init_observability(settings: Any | None = None) -> None:
 class _NoOpTracer:
     """Fallback tracer with the minimal surface used by call sites."""
 
-    def start_span(self, _name: str, **_kw: Any) -> "_NoOpSpan":
+    def start_span(self, _name: str, **_kw: Any) -> _NoOpSpan:
         return _NoOpSpan()
 
 
 class _NoOpSpan:
-    def __enter__(self) -> "_NoOpSpan":
+    def __enter__(self) -> _NoOpSpan:
         return self
 
     def __exit__(self, *_exc: object) -> bool:
@@ -133,7 +137,7 @@ def capture_error(error: BaseException) -> None:
     dsn = _sentry_dsn(None)
     if dsn:
         try:
-            import sentry_sdk  # noqa: PLC0415
+            import sentry_sdk
 
             sentry_sdk.capture_exception(error)
             return

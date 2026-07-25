@@ -16,7 +16,7 @@ from the context so the draft is reproducible offline.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -38,10 +38,10 @@ def _session_date(ctx: InterviewContext) -> str:
     if ctx.answers:
         # started_at is an ISO-8601 string like "2026-06-08T09:00:00Z".
         return ctx.answers[0].started_at[:10]
-    return datetime.now(timezone.utc).date().isoformat()
+    return datetime.now(UTC).date().isoformat()
 
 
-def _question_text(q) -> str:  # noqa: ANN001 - PlannedQuestion (avoid import cycle weight)
+def _question_text(q) -> str:
     return q.text.get("en") or next(iter(q.text.values()), "")
 
 
@@ -163,7 +163,7 @@ async def propose_skill(
         frontmatter=frontmatter,
         body_md=body,
         source_session_id=session_id,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
     )
 
     # Write ONLY into the review queue — never the live library.
@@ -175,8 +175,8 @@ async def propose_skill(
 
 def _write_draft(draft: SkillDraft, path: Path) -> None:
     """Serialize a draft as a frontmatter+body skill file in the review queue."""
-    from .models import Skill  # noqa: PLC0415 - local to keep store import surface tight
-    from .store import serialize_skill  # noqa: PLC0415
+    from .models import Skill
+    from .store import serialize_skill
 
     skill = Skill(frontmatter=draft.frontmatter, body_md=draft.body_md)
     path.write_text(serialize_skill(skill), encoding="utf-8")

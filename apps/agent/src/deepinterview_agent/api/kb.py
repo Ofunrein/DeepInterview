@@ -50,7 +50,7 @@ async def _guarded(coro, *, label: str, timeout: float):
     """Await ``coro`` with a timeout; on ANY error return ``None`` (caller falls back)."""
     try:
         return await asyncio.wait_for(coro, timeout=timeout)
-    except Exception:  # noqa: BLE001 - kb endpoints must always return something usable
+    except Exception:
         log.exception("kb: stage %r failed; degrading", label)
         return None
 

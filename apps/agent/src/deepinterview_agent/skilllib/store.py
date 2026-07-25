@@ -81,7 +81,7 @@ def parse_skill(text: str) -> Skill:
     _, raw_front, body = parts
     data = yaml.safe_load(raw_front) or {}
     if not isinstance(data, dict):
-        raise ValueError("skill frontmatter must be a YAML mapping")
+        raise ValueError("skill frontmatter must be a YAML mapping")  # noqa: TRY004 - caller catches ValueError for skill-file errors
     frontmatter = SkillFrontmatter.model_validate(_coerce_scalars(data))
     return Skill(frontmatter=frontmatter, body_md=body.lstrip("\n"))
 

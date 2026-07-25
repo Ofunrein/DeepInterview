@@ -238,7 +238,7 @@ def test_run_score_errors_when_evaluate_stage_fails(monkeypatch) -> None:
     deps = build_deps()
     session_id, _ctx = _prepare_session(deps)
 
-    import deepinterview_agent.post as post
+    from deepinterview_agent import post
 
     async def _boom(*args, **kwargs):
         raise RuntimeError("provider exploded")
@@ -263,7 +263,7 @@ def test_run_score_degrades_when_a_late_stage_fails(monkeypatch) -> None:
     deps = build_deps()
     session_id, _ctx = _prepare_session(deps)
 
-    import deepinterview_agent.post as post
+    from deepinterview_agent import post
 
     async def _boom(*args, **kwargs):
         raise RuntimeError("provider exploded")

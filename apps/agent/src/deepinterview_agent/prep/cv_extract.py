@@ -92,7 +92,7 @@ def _markitdown_extract(data: bytes, mime: str) -> str:
     extension) and returns the converted text, or ``""`` on any failure.
     """
     try:
-        from markitdown import MarkItDown  # noqa: PLC0415 - optional, lazy
+        from markitdown import MarkItDown
     except ImportError as exc:  # pragma: no cover - depends on optional dep
         log.warning("markitdown is not installed; cannot parse CV document (%s)", exc)
         return ""
@@ -124,8 +124,8 @@ async def _gemini_extract(data: bytes, mime: str, deps: Deps) -> str:
     """
     settings = deps.settings
     try:
-        from google import genai  # noqa: PLC0415 - optional, lazy
-        from google.genai import types  # noqa: PLC0415 - optional, lazy
+        from google import genai
+        from google.genai import types
     except ImportError as exc:  # pragma: no cover - depends on optional SDK
         log.warning("google-genai is not installed; skipping Gemini CV fallback (%s)", exc)
         return ""
@@ -160,7 +160,7 @@ def _decode_data_url(cv_url: str) -> tuple[bytes, str] | None:
             data = base64.b64decode(payload, validate=False)
         else:
             # Percent-encoded text data URL (rare for CVs, but handle it).
-            from urllib.parse import unquote_to_bytes  # noqa: PLC0415
+            from urllib.parse import unquote_to_bytes
 
             data = unquote_to_bytes(payload)
         return data, mime
@@ -180,8 +180,8 @@ def _is_fetchable_url(url: str) -> bool:
     refused URL degrades exactly like an unreachable one (caller falls back to
     treating the input as pasted text).
     """
-    import ipaddress  # noqa: PLC0415
-    from urllib.parse import urlsplit  # noqa: PLC0415
+    import ipaddress
+    from urllib.parse import urlsplit
 
     try:
         parts = urlsplit(url)

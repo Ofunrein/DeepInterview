@@ -40,7 +40,7 @@ class _RoundPersona(Interviewer):
 
     _round_label = "next"
 
-    def __init__(self, userdata, chat_ctx=None) -> None:  # noqa: ANN001
+    def __init__(self, userdata, chat_ctx=None) -> None:
         super().__init__(
             userdata,
             chat_ctx=chat_ctx,

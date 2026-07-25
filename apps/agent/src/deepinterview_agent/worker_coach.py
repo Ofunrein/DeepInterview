@@ -116,7 +116,7 @@ async def entrypoint(ctx: JobContext) -> None:
             return
         try:
             await deps.repo.save_coach_transcript(session_id, userdata.transcript)
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("worker_coach: save_coach_transcript failed for %s", session_id)
 
     ctx.add_shutdown_callback(_on_shutdown)
