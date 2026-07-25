@@ -13,10 +13,13 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-4338CA.svg)](apps/agent)
 [![pnpm](https://img.shields.io/badge/pnpm-workspace-4338CA.svg)](pnpm-workspace.yaml)
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/fT7Ecbyq)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-4338CA.svg)](CONTRIBUTING.md)
 
 **UI in English + Tiếng Việt · voice interviews in 7 languages incl. Vietnamese (more as packs land) · no sign-in required to self-host**
 
 [Why](#why-deepinterview) · [Features](#features) · [Quickstart](#quickstart) · [Architecture](#architecture) · [Community](#community) · [Contributing](#contributing)
+
+**Contributions wanted** — [interview question-bank packs](https://github.com/ngoanpv/DeepInterview/issues/38) · [language packs & provider adapters](docs/GOOD_FIRST_ISSUES.md) · your packs get asked in real interviews, and no API keys are needed to develop.
 
 </div>
 
