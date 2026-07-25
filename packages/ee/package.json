@@ -1,6 +1,6 @@
 {
   "name": "@deepinterview/ee",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Open-core extension seam — inert OSS defaults; downstream distributions replace this package's contents.",
   "license": "Apache-2.0",

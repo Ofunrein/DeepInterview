@@ -57,7 +57,7 @@ _(Changelog is intentionally pre-launch and honest — no "1,000 stars" or shipp
 
 ## Releases
 
-No tagged release yet — DeepInterview is pre-`v0.1`. Watch [Releases](https://github.com/ngoanpv/DeepInterview/releases) and the News section above. Citation metadata lives in [`CITATION.cff`](CITATION.cff).
+Current release: **[v0.1.0](https://github.com/ngoanpv/DeepInterview/releases/tag/v0.1.0)** (2026-07-25) — the first tagged milestone: the full prep → live voice interview → scoring → coach loop verified on real providers, uncapped billing-free OSS build, hardened API surface, and the community playbook library wired into the question planner. See [Releases](https://github.com/ngoanpv/DeepInterview/releases) for notes; citation metadata lives in [`CITATION.cff`](CITATION.cff).
 
 ## Features
 
