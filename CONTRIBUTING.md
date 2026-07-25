@@ -54,7 +54,7 @@ pnpm + Turborepo. The TS **web** and Python **agent** are co-equal runtimes that
 | Path | What it owns | Language |
 |---|---|---|
 | `packages/shared` | **The contract.** `InterviewContext`, `QuestionPlan`, `ScoreCard`, REST + room contracts. TS source of truth, mirrored as Pydantic. **Build first; change carefully.** | TS (Zod) |
-| `apps/web` | UI, auth, CV upload, LiveKit token endpoint, all screens (`/setup`, `/interview/[id]`, `/report/[id]`, `/prep`). Knows nothing about LLM/STT/TTS. | Next.js 15 / React 19 / TS |
+| `apps/web` | UI, auth, CV upload, LiveKit token endpoint, all screens (`/setup`, `/interview/[id]`, `/report/[id]`, `/prep`). Knows nothing about LLM/STT/TTS. | Next.js 16 / React 19 / TS |
 | `apps/agent` | The live voice loop + LangGraph prep/post pipelines + avatar render util + skill distiller. Provider **adapters** live in `core/adapters/`. | Python 3.11 (uv) |
 | `services/lightrag` | LightRAG + RAG-Anything knowledge sidecar (Docker, `:9621`) for the Prep Coach. | Python (Docker) |
 | `cli/` | The `deepinterview` CLI / first-run init wizard — the adoption lever. | TS (tsup) |

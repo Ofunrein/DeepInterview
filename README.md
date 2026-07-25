@@ -67,7 +67,7 @@ pnpm deepinterview init    # or: cp .env.example .env  (keys are optional — se
 docker compose up --build  # web (:3000) + agent API (:8000) + lightrag (:9621)
 ```
 
-> **Status (verified June 2026, Docker 29 / Compose v5):** all images build and the three base services come up **healthy with zero keys** — the agent runs the full prep → plan → score loop on mock adapters, and http://localhost:3000 works offline.
+> **Status (verified July 2026, Docker 29 / Compose v5):** all images build and the three base services come up **healthy with zero keys** — the agent runs the full prep → plan → score loop on mock adapters, and http://localhost:3000 works offline.
 >
 > - **Docker reads the repo-root `.env`** (compose `env_file`). Local dev (`pnpm dev`) instead reads `apps/agent/.env` and `apps/web/.env.local` — keys there are **not** visible to the containers, so put them in the root `.env` for Docker.
 > - The **live voice worker** is opt-in: `docker compose --profile live up`. It **requires** `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` (plus STT/TTS/LLM keys) in the root `.env`; without them the worker exits and restart-loops while the base stack keeps running.
@@ -80,7 +80,7 @@ The button deploys **`apps/web`** to Vercel. The Python **agent** is not serverl
 
 <details><summary>Configuring providers & adding a language pack</summary>
 
-- **Keys** live in `.env` only (never committed). See [`.env.example`](.env.example) for the full list (LiveKit, Supabase, R2, STT/TTS/LLM, Tavily/Exa, payments, observability).
+- **Keys** live in `.env` only (never committed). See [`.env.example`](.env.example) for the full list (LiveKit, Supabase, R2, STT/TTS/LLM, Tavily/Exa, observability).
 - **Provider choice** is per-component: set `STT_PROVIDER`, `TTS_PROVIDER`, `LLM_PROVIDER` and the matching key. With no keys set, the agent falls back to **mock adapters** so everything still runs offline.
 - **Languages** are pluggable packs. UI strings live in `apps/web/lib/i18n/messages/` (EN + VI shipped); each planned question's `text` is a `LocalizedText` map (`text.en` / `text.vi` / …) alongside a `language_mode`.
 
@@ -187,7 +187,7 @@ Built in the open, with [Claude Code](https://claude.com/claude-code) as a heavi
 
 ## Contributing
 
-We'd love your help — especially **language packs**, **provider adapters**, and **accessibility**. Start with:
+We'd love your help — especially **interview question-bank packs** ([#38](https://github.com/ngoanpv/DeepInterview/issues/38)), **language packs**, **provider adapters**, and **accessibility**. Start with:
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, the monorepo map, the work-package model, the provider-adapter (mock-first) pattern, and how to run **offline with no keys**.
 - [Good first issues](docs/GOOD_FIRST_ISSUES.md) — concrete, scoped tasks drawn from real gaps.
