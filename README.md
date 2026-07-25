@@ -219,7 +219,7 @@ flowchart TB
 - **[Issues](https://github.com/ngoanpv/DeepInterview/issues)** — bugs & features (templates provided).
 - **[The playbook library](skills/README.md)** — browsable interview question-bank packs that directly shape the AI's questions; contributions welcome ([#38](https://github.com/ngoanpv/DeepInterview/issues/38)).
 
-Built in the open. We respond to issues — ghosting contributors is the #1 cause of OSS death, and we don't intend to.
+Built in the open, with [Claude Code](https://claude.com/claude-code) as a heavily-used co-author — the AI interviewer declined to interview it. We respond to issues — ghosting contributors is the #1 cause of OSS death, and we don't intend to.
 
 ## Contributing
 
