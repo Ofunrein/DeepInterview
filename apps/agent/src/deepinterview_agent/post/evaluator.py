@@ -139,7 +139,7 @@ async def evaluate(ctx: InterviewContext, deps: Deps) -> list[CompetencyScore]:
         async with semaphore:
             try:
                 return await _score_question(question, answer, deps)
-            except Exception:  # noqa: BLE001 - isolate: one bad call must not void the rest
+            except Exception:
                 log.exception("evaluator: scoring failed for question %s; skipping", question.id)
                 return None
 

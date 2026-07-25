@@ -41,10 +41,10 @@ app = create_app()
 
 
 def main() -> None:
-    import uvicorn  # noqa: PLC0415
+    import uvicorn
 
     settings = get_settings()
-    uvicorn.run(app, host="0.0.0.0", port=settings.agent_api_port)  # noqa: S104
+    uvicorn.run(app, host="0.0.0.0", port=settings.agent_api_port)
 
 
 if __name__ == "__main__":

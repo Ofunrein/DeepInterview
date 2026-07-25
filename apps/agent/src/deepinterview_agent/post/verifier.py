@@ -56,7 +56,7 @@ async def _guarded(coro, *, label: str, timeout: float):
     """Await ``coro`` with a timeout; on ANY error return ``None`` (caller falls back)."""
     try:
         return await asyncio.wait_for(coro, timeout=timeout)
-    except Exception:  # noqa: BLE001 - the verifier must never change scores on failure
+    except Exception:
         log.exception("verifier: check %r failed; keeping original score", label)
         return None
 

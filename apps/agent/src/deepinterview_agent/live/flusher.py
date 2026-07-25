@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from typing import TYPE_CHECKING, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from ..core.logging import get_logger
 
@@ -81,5 +82,5 @@ class TranscriptFlusher:
                 await self._checkpoint()
         except asyncio.CancelledError:  # pragma: no cover - cancellation path
             raise
-        except Exception:  # noqa: BLE001 - a checkpointer must never crash the call
+        except Exception:
             log.exception("transcript_flusher: checkpoint loop error (ignored)")

@@ -39,22 +39,23 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 import pytest
 
 pytest.importorskip("livekit.agents")
 
-from deepinterview_agent import worker  # noqa: E402
-from deepinterview_agent.api.session import LiveResultRequest  # noqa: E402
-from deepinterview_agent.core.deps import build_deps  # noqa: E402
-from deepinterview_agent.live import state  # noqa: E402
-from deepinterview_agent.live.state import InterviewUserdata  # noqa: E402
-from deepinterview_agent.prep import run_prep  # noqa: E402
-from deepinterview_agent.shared_models import (  # noqa: E402
+from deepinterview_agent import worker
+from deepinterview_agent.api.session import LiveResultRequest
+from deepinterview_agent.core.deps import build_deps
+from deepinterview_agent.live import state
+from deepinterview_agent.live.state import InterviewUserdata
+from deepinterview_agent.prep import run_prep
+from deepinterview_agent.shared_models import (
     InterviewContext,
     LanguageMode,
     PrepRequest,
@@ -287,15 +288,15 @@ class _RecordingHttpx:
         class _Client:
             def __init__(self, *args: Any, **kwargs: Any) -> None: ...
 
-            async def __aenter__(self) -> _Client:
+            async def __aenter__(self) -> _Client:  # noqa: PYI034 - minimal test double
                 return self
 
-            async def __aexit__(self, *exc: Any) -> bool:
+            async def __aexit__(self, *exc: object) -> bool:
                 return False
 
             async def post(
                 self, url: str, json: Any = None, headers: Any = None
-            ) -> SimpleNamespace:  # noqa: A002 - mirrors httpx
+            ) -> SimpleNamespace:
                 dumps(json)  # what the real client does with json=
                 recorder.posts.append((url, json))
                 if url.endswith("/live-result") and not recorder.live_result_ok:

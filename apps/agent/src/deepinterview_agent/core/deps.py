@@ -47,7 +47,7 @@ _default_deps: Deps | None = None
 
 def build_deps(settings: Settings | None = None) -> Deps:
     """Assemble the dependency bundle (defaults to cached settings + cached deps)."""
-    global _default_deps  # noqa: PLW0603 - module-level cache, see comment above
+    global _default_deps
     if settings is not None:
         return _assemble(settings)
     current = get_settings()

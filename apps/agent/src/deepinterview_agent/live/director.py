@@ -95,5 +95,5 @@ class Director:
             log.info("director: interview plan fully covered")
         except asyncio.CancelledError:  # pragma: no cover - cancellation path
             raise
-        except Exception:  # noqa: BLE001 - a watcher must never crash the call
+        except Exception:
             log.exception("director: coverage watcher error (ignored)")

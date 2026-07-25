@@ -42,7 +42,7 @@ from .shared_models import InterviewContext, RoomMetadata, ScoreRequest
 log = get_logger(__name__)
 
 
-def wire_audio_path_logging(ctx: JobContext, session) -> None:  # noqa: ANN001
+def wire_audio_path_logging(ctx: JobContext, session) -> None:
     """INFO-level tracing of the candidate→agent audio path.
 
     The default SDK logs are silent about track publish/subscribe and user
@@ -50,24 +50,24 @@ def wire_audio_path_logging(ctx: JobContext, session) -> None:  # noqa: ANN001
     undiagnosable from logs. One line per lifecycle event, low volume.
     """
 
-    def _kind(pub) -> str:  # noqa: ANN001
+    def _kind(pub) -> str:
         return str(getattr(pub, "kind", "?"))
 
     @ctx.room.on("participant_connected")
-    def _on_participant(p) -> None:  # noqa: ANN001
+    def _on_participant(p) -> None:
         log.info("audio-path: participant connected identity=%s", p.identity)
 
     @ctx.room.on("track_published")
-    def _on_published(pub, p) -> None:  # noqa: ANN001
+    def _on_published(pub, p) -> None:
         log.info("audio-path: track PUBLISHED kind=%s muted=%s by %s",
                  _kind(pub), getattr(pub, "muted", "?"), p.identity)
 
     @ctx.room.on("track_subscribed")
-    def _on_subscribed(track, pub, p) -> None:  # noqa: ANN001
+    def _on_subscribed(track, pub, p) -> None:
         log.info("audio-path: track SUBSCRIBED kind=%s from %s", _kind(pub), p.identity)
 
     @ctx.room.on("track_muted")
-    def _on_muted(pub, p) -> None:  # noqa: ANN001
+    def _on_muted(pub, p) -> None:
         log.info("audio-path: track MUTED kind=%s by %s", _kind(pub), p.identity)
 
     for p in ctx.room.remote_participants.values():
@@ -75,17 +75,17 @@ def wire_audio_path_logging(ctx: JobContext, session) -> None:  # noqa: ANN001
         log.info("audio-path: already present identity=%s tracks=%s", p.identity, pubs)
 
     @session.on("user_state_changed")
-    def _on_user_state(ev) -> None:  # noqa: ANN001
+    def _on_user_state(ev) -> None:
         log.info("audio-path: user state -> %s", getattr(ev, "new_state", ev))
 
     @session.on("user_input_transcribed")
-    def _on_user_transcribed(ev) -> None:  # noqa: ANN001
+    def _on_user_transcribed(ev) -> None:
         log.info("audio-path: user transcript final=%s len=%d",
                  getattr(ev, "is_final", "?"), len(getattr(ev, "transcript", "") or ""))
 
 
 def wire_transcript_capture(
-    session, userdata: InterviewUserdata, *, tag_questions: bool = True  # noqa: ANN001
+    session, userdata: InterviewUserdata, *, tag_questions: bool = True
 ) -> None:
     """Capture every committed conversation turn into the flat transcript log.
 
@@ -103,7 +103,7 @@ def wire_transcript_capture(
     """
 
     @session.on("conversation_item_added")
-    def _on_item(ev) -> None:  # noqa: ANN001
+    def _on_item(ev) -> None:
         item = ev.item
         role = getattr(item, "role", None)
         text = getattr(item, "text_content", None)
@@ -131,7 +131,7 @@ def _stt_lang(language: str, mixed: bool) -> str:
     return "multi" if mixed else _STT_LANG.get(language, "en")
 
 
-def _deepgram_stt(lang: str, model: str, api_key=None):  # noqa: ANN001, ANN201
+def _deepgram_stt(lang: str, model: str, api_key=None):
     """Return a configured deepgram.STT instance with tuned params for each language tier.
 
     nova-3 (en/multi):
@@ -150,10 +150,10 @@ def _deepgram_stt(lang: str, model: str, api_key=None):  # noqa: ANN001, ANN201
     smart_format=True applies to BOTH tiers (broadly language-supported:
     number/date formatting).
     """
-    from livekit.plugins import deepgram  # noqa: PLC0415
+    from livekit.plugins import deepgram
 
     is_nova3 = model == "nova-3"
-    kwargs = dict(
+    kwargs = dict(  # noqa: C408 - kwargs dict is mutated/expanded below; dict() reads better here
         language=lang,
         model=model,
         punctuate=True,
@@ -168,7 +168,7 @@ def _deepgram_stt(lang: str, model: str, api_key=None):  # noqa: ANN001, ANN201
     return deepgram.STT(**kwargs)
 
 
-def build_stt(settings, language="en", mixed=False):  # noqa: ANN001, ANN201 - livekit plugin types optional
+def build_stt(settings, language="en", mixed=False):
     lang = _stt_lang(language, mixed)
     # CONFIRMED in live testing (2026-06-10): nova-3 + language=vi returns NO
     # transcripts on Deepgram's streaming API (English worked end-to-end in the
@@ -180,14 +180,14 @@ def build_stt(settings, language="en", mixed=False):  # noqa: ANN001, ANN201 - l
     if provider == "deepgram" and settings.deepgram_api_key:
         return _deepgram_stt(lang, model, api_key=settings.deepgram_api_key)
     if provider == "soniox" and settings.soniox_api_key:
-        from livekit.plugins import soniox  # noqa: PLC0415
+        from livekit.plugins import soniox
 
         return soniox.STT(api_key=settings.soniox_api_key)
     log.warning("build_stt: no configured STT provider/key; using Deepgram default")
     return _deepgram_stt(lang, model)
 
 
-def _require_live_providers(settings) -> None:  # noqa: ANN001
+def _require_live_providers(settings) -> None:
     """Fail fast when a selected real live provider is missing its credential.
 
     The live loop cannot recover from a missing/typo'd key mid-call — the
@@ -219,19 +219,19 @@ def _require_live_providers(settings) -> None:  # noqa: ANN001
         )
 
 
-def build_llm(settings):  # noqa: ANN001, ANN201
+def build_llm(settings):
     provider = settings.llm_provider
     if provider == "openai" and settings.openai_api_key:
-        from livekit.plugins import openai  # noqa: PLC0415
+        from livekit.plugins import openai
 
         return openai.LLM(model=settings.openai_model, api_key=settings.openai_api_key)
     if provider == "gemini" and settings.gemini_api_key:
-        from livekit.plugins import google  # noqa: PLC0415
+        from livekit.plugins import google
 
         # Live tier: lowest-latency flash on the real-time turn path.
         return google.LLM(model=settings.gemini_model_live, api_key=settings.gemini_api_key)
     log.warning("build_llm: no configured LLM provider/key; using OpenAI default")
-    from livekit.plugins import openai  # noqa: PLC0415
+    from livekit.plugins import openai
 
     return openai.LLM()
 
@@ -242,7 +242,7 @@ def build_llm(settings):  # noqa: ANN001, ANN201
 _CARTESIA_LANGS = {"en", "es", "fr", "de", "ja", "zh", "pt", "hi", "it", "ko", "nl", "pl", "ru", "sv", "tr"}
 
 
-def build_tts(settings, language="en"):  # noqa: ANN001, ANN201
+def build_tts(settings, language="en"):
     lang = _TTS_LANG.get(language, "en")
     provider = settings.tts_provider
     needs_non_cartesia = language not in _CARTESIA_LANGS
@@ -253,7 +253,7 @@ def build_tts(settings, language="en"):  # noqa: ANN001, ANN201
     # much slower Gemini native TTS, which now only serves as the vi fallback when
     # no ElevenLabs key is configured.
     if (provider == "elevenlabs" or needs_non_cartesia) and settings.elevenlabs_api_key:
-        from livekit.plugins import elevenlabs  # noqa: PLC0415
+        from livekit.plugins import elevenlabs
 
         # "Sarah" is a free-tier-allowed default voice; the shared voice library
         # 402s on free plans. Flash v2.5 supports per-request language enforcement
@@ -268,17 +268,17 @@ def build_tts(settings, language="en"):  # noqa: ANN001, ANN201
     # No ElevenLabs key but the language is outside Cartesia's set (e.g. vi): fall
     # back to Gemini native TTS so it is spoken correctly, just slower.
     if needs_non_cartesia and provider != "elevenlabs" and settings.gemini_api_key:
-        from livekit.plugins.google.beta import GeminiTTS  # noqa: PLC0415
+        from livekit.plugins.google.beta import GeminiTTS
 
         log.info("build_tts: %r unsupported by Cartesia; using Gemini TTS fallback", language)
         return GeminiTTS(model=settings.gemini_tts_model, api_key=settings.gemini_api_key)
 
     if provider == "cartesia" and settings.cartesia_api_key:
-        from livekit.plugins import cartesia  # noqa: PLC0415
+        from livekit.plugins import cartesia
 
         return cartesia.TTS(api_key=settings.cartesia_api_key, language=lang)
     log.warning("build_tts: no configured TTS provider/key; using Cartesia default")
-    from livekit.plugins import cartesia  # noqa: PLC0415
+    from livekit.plugins import cartesia
 
     return cartesia.TTS(language=lang)
 
@@ -312,7 +312,9 @@ def build_turn_handling(language: str = "en") -> dict:
     handling: dict = {"interruption": {"min_words": 3}}
     if language in _EOU_MODEL_LANGS:
         try:
-            from livekit.plugins.turn_detector.multilingual import MultilingualModel  # noqa: PLC0415
+            from livekit.plugins.turn_detector.multilingual import (
+                MultilingualModel,
+            )
 
             handling["turn_detection"] = MultilingualModel()
             return handling
@@ -322,7 +324,7 @@ def build_turn_handling(language: str = "en") -> dict:
     return handling
 
 
-def build_room_options(settings):  # noqa: ANN001, ANN201
+def build_room_options(settings):
     """Room I/O options: BVC noise cancellation, strictly opt-in (ENABLE_BVC).
 
     BVC strips background noise BEFORE VAD/STT see it, but its native filter
@@ -337,8 +339,8 @@ def build_room_options(settings):  # noqa: ANN001, ANN201
     if not settings.enable_bvc or "livekit.cloud" not in url:
         return None
     try:
-        from livekit.agents.voice.room_io import AudioInputOptions, RoomOptions  # noqa: PLC0415
-        from livekit.plugins import noise_cancellation  # noqa: PLC0415
+        from livekit.agents.voice.room_io import AudioInputOptions, RoomOptions
+        from livekit.plugins import noise_cancellation
 
         return RoomOptions(audio_input=AudioInputOptions(noise_cancellation=noise_cancellation.BVC()))
     except Exception:  # noqa: BLE001 - optional plugin; raw audio still works
@@ -346,11 +348,11 @@ def build_room_options(settings):  # noqa: ANN001, ANN201
         return None
 
 
-def build_vad(proc: JobProcess | None = None):  # noqa: ANN201
+def build_vad(proc: JobProcess | None = None):
     """Return the Silero VAD, preferring the prewarmed per-process instance."""
     if proc is not None and "vad" in proc.userdata:
         return proc.userdata["vad"]
-    from livekit.plugins import silero  # noqa: PLC0415
+    from livekit.plugins import silero
 
     return silero.VAD.load()
 
@@ -361,7 +363,7 @@ def prewarm(proc: JobProcess) -> None:
     Loading Silero inside the entrypoint adds model-load latency to every job
     and blocks the event loop; ``prewarm_fnc`` runs before jobs are assigned.
     """
-    from livekit.plugins import silero  # noqa: PLC0415
+    from livekit.plugins import silero
 
     proc.userdata["vad"] = silero.VAD.load()
 
@@ -369,12 +371,12 @@ def prewarm(proc: JobProcess) -> None:
 # --- session id --------------------------------------------------------------
 
 
-def _api_base(settings) -> str:  # noqa: ANN001
+def _api_base(settings) -> str:
     """Base URL for the prep/score API: AGENT_API_URL, else same-host default."""
     return (settings.agent_api_url or f"http://localhost:{settings.agent_api_port}").rstrip("/")
 
 
-def _internal_headers(settings) -> dict[str, str]:  # noqa: ANN001
+def _internal_headers(settings) -> dict[str, str]:
     """Auth header for the agent API's guarded write endpoints when configured."""
     secret = getattr(settings, "internal_api_secret", None)
     return {"X-Internal-Secret": secret} if secret else {}
@@ -391,7 +393,7 @@ def _session_id_from_room(ctx: JobContext) -> str:
     return ctx.room.name
 
 
-async def _load_context_via_api(session_id: str, settings) -> InterviewContext | None:  # noqa: ANN001
+async def _load_context_via_api(session_id: str, settings) -> InterviewContext | None:
     """Fetch the prepped InterviewContext from the prep API over HTTP.
 
     The worker runs in a SEPARATE process from the API (``cli.run_app`` spawns its
@@ -399,13 +401,13 @@ async def _load_context_via_api(session_id: str, settings) -> InterviewContext |
     the API's ``GET /api/session/{id}`` SessionView instead. (With Supabase
     configured both processes share the store and either path works.)
     """
-    import httpx  # noqa: PLC0415
+    import httpx
 
     url = f"{_api_base(settings)}/api/session/{session_id}"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(url)  # GET read path is unguarded
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception("worker: failed to reach %s", url)
         return None
     if resp.status_code != 200:
@@ -480,7 +482,7 @@ async def entrypoint(ctx: JobContext) -> None:
     usage_collector = metrics.UsageCollector()
 
     @session.on("metrics_collected")
-    def _on_metrics(ev) -> None:  # noqa: ANN001
+    def _on_metrics(ev) -> None:
         usage_collector.collect(ev.metrics)
 
     api_base = _api_base(settings)
@@ -494,7 +496,7 @@ async def entrypoint(ctx: JobContext) -> None:
         scored). POST the result to the API instead; direct repo writes below
         are the fallback for shared-store (Supabase) deployments.
         """
-        import httpx  # noqa: PLC0415
+        import httpx
 
         payload = {
             "context": userdata.ctx.model_dump(),
@@ -509,18 +511,18 @@ async def entrypoint(ctx: JobContext) -> None:
                     headers=_internal_headers(settings),
                 )
             return resp.status_code == 200
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("worker: live-result POST failed for %s", session_id)
             return False
 
-    async def _flush_checkpoint(context, transcript: list[dict]) -> None:  # noqa: ANN001
+    async def _flush_checkpoint(context, transcript: list[dict]) -> None:
         """Off-path partial persist for the TranscriptFlusher (non-terminal).
 
         Best-effort: any failure is swallowed by the flusher. Never marks the
         session terminal — a checkpoint is a mid-interview snapshot, and the
         live-result endpoint refuses writes once a session is terminal anyway.
         """
-        import httpx  # noqa: PLC0415
+        import httpx
 
         payload = {
             "context": context.model_dump(),
@@ -544,28 +546,27 @@ async def entrypoint(ctx: JobContext) -> None:
         """Direct-store fallback (correct when both processes share Supabase)."""
         try:
             await deps.repo.save_transcript(session_id, userdata.transcript)
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("worker: save_transcript failed for %s", session_id)
         try:
             await deps.repo.save_context(session_id, userdata.ctx)
-        except Exception:  # noqa: BLE001
-            log.error(
+        except Exception:
+            log.exception(
                 "worker: save_context FAILED for %s — answers not persisted; "
                 "skipping scoring to avoid a blank scorecard",
                 session_id,
-                exc_info=True,
             )
             # Mark errored so the report shows an honest message, not zeros.
             try:
                 await deps.repo.update_status(session_id, "error")
-            except Exception:  # noqa: BLE001
-                log.error("worker: update_status(error) failed for %s", session_id, exc_info=True)
+            except Exception:
+                log.exception("worker: update_status(error) failed for %s", session_id)
             return False
         if not has_answers:
             try:
                 await deps.repo.update_status(session_id, "no_answers")
-            except Exception:  # noqa: BLE001
-                log.error("worker: update_status(no_answers) failed for %s", session_id, exc_info=True)
+            except Exception:
+                log.exception("worker: update_status(no_answers) failed for %s", session_id)
         return True
 
     async def _on_shutdown() -> None:
@@ -578,7 +579,7 @@ async def entrypoint(ctx: JobContext) -> None:
         try:
             summary = usage_collector.get_summary()
             log.info("worker: session %s usage: %s", session_id, summary)
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("worker: usage summary failed for %s", session_id)
 
         # Recover answers the save_answer tool never committed (model forgot to
@@ -611,7 +612,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # endpoint runs the full LLM pipeline inline, so allow it minutes (a 10s
         # ceiling would abandon nearly every real scoring run).
         try:
-            import httpx  # noqa: PLC0415
+            import httpx
 
             req = ScoreRequest(session_id=session_id)
             score_timeout = httpx.Timeout(10.0, read=600.0)
@@ -621,7 +622,7 @@ async def entrypoint(ctx: JobContext) -> None:
                     json=req.model_dump(),
                     headers=_internal_headers(settings),
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception("worker: scoring trigger failed for %s", session_id)
 
     ctx.add_shutdown_callback(_on_shutdown)

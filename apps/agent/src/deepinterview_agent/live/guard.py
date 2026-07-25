@@ -20,7 +20,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from ..core.logging import get_logger
 
@@ -124,5 +125,5 @@ class SessionGuard:
                 await asyncio.sleep(self._interval)
         except asyncio.CancelledError:  # pragma: no cover - cancellation path
             raise
-        except Exception:  # noqa: BLE001 - a guard must never crash the call
+        except Exception:
             log.exception("session_guard: watcher error (ignored)")

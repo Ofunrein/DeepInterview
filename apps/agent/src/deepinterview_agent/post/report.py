@@ -104,13 +104,13 @@ async def _model_answers(ctx: InterviewContext, deps: Deps) -> list[ModelAnswer]
 
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT_DRAFTS)
 
-    async def _draft(question, transcript):  # noqa: ANN001, ANN202
+    async def _draft(question, transcript):
         async with semaphore:
             try:
                 system, user = model_answer_prompts(question, ctx.candidate, transcript)
                 text = await deps.llm.complete_text(system=system, user=user)
                 return ModelAnswer(question_id=question.id, answer=text)
-            except Exception:  # noqa: BLE001 - isolate: one bad draft must not void the rest
+            except Exception:
                 log.exception("report: model answer failed for question %s; skipping", question.id)
                 return None
 

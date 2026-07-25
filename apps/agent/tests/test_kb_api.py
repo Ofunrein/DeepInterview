@@ -5,9 +5,28 @@ deterministic stub track_id; ``/api/kb/query`` grounds via the default
 MockKnowledge client.
 """
 
+import pytest
 from fastapi.testclient import TestClient
 
 from deepinterview_agent.app import create_app
+from deepinterview_agent.core.config import get_settings
+
+
+@pytest.fixture(autouse=True)
+def _no_local_dotenv(monkeypatch, tmp_path):
+    """Keep the suite independent of the developer's local config.
+
+    pydantic-settings reads ``.env`` cwd-relative, so a dev machine with
+    LIGHTRAG_URL wired for local runs would silently flip these offline tests
+    onto HttpKnowledge. Run from an empty cwd, scrub the process env, and drop
+    the ``get_settings`` lru_cache on both sides so neither an earlier test's
+    cached Settings leaks in nor ours leaks out.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("LIGHTRAG_URL", raising=False)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def _client() -> TestClient:

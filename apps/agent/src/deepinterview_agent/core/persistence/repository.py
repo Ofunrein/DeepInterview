@@ -181,7 +181,7 @@ class SupabaseRepository:
     def _table(self) -> Any:
         if self._client is None:
             try:
-                from supabase import create_client  # noqa: PLC0415
+                from supabase import create_client
             except ImportError as exc:  # pragma: no cover - depends on optional SDK
                 raise RuntimeError(
                     "supabase is not installed; install the 'supabase' extra."
@@ -190,7 +190,7 @@ class SupabaseRepository:
         return self._client.table("sessions")
 
     async def _exec(self, build: Any) -> Any:
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
         return await asyncio.to_thread(build)
 

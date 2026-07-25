@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-__all__ = ["run_coach_plan", "run_coach_chat"]
+__all__ = ["run_coach_chat", "run_coach_plan"]
 
 _DEFAULT_EST_MIN = 25
 _STAGE_TIMEOUT = 60.0
@@ -66,7 +66,7 @@ async def _guarded(coro, *, label: str, timeout: float = _STAGE_TIMEOUT):
     """Await ``coro`` with a timeout; on ANY error return ``None`` (caller falls back)."""
     try:
         return await asyncio.wait_for(coro, timeout=timeout)
-    except Exception:  # noqa: BLE001 - the coach must always return something usable
+    except Exception:
         log.exception("coach: stage %r failed; degrading", label)
         return None
 

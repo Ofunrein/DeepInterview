@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-__all__ = ["run_score", "evaluate", "coach", "generate_report", "verify_scores"]
+__all__ = ["coach", "evaluate", "generate_report", "run_score", "verify_scores"]
 
 
 def _missing_context_scorecard(session_id: str) -> ScoreCard:
@@ -151,7 +151,7 @@ async def _guarded(coro, *, label: str, timeout: float):
     """
     try:
         return await asyncio.wait_for(coro, timeout=timeout)
-    except Exception:  # noqa: BLE001 - degrade, never propagate, on the scoring path
+    except Exception:
         log.exception("post: scoring stage %r failed; degrading", label)
         return None
 
@@ -166,11 +166,13 @@ async def _maybe_distill_skill(session_id: str, deps: Deps) -> None:
     if not deps.settings.enable_skill_distiller:
         return
     try:
-        from ..skilllib.distiller import propose_skill  # noqa: PLC0415 - keep skilllib off the import hot path
+        from ..skilllib.distiller import (
+            propose_skill,
+        )
 
         draft = await propose_skill(session_id, deps)
         log.info("post: skill distiller proposed draft %s for session %s", draft.id, session_id)
-    except Exception:  # noqa: BLE001 - distiller is best-effort; must not affect scoring
+    except Exception:
         log.exception("post: skill distiller failed for session %s", session_id)
 
 

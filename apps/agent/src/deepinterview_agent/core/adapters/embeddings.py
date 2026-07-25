@@ -27,7 +27,7 @@ class OpenAIEmbeddings:
 
     def _client(self) -> Any:
         try:
-            from openai import AsyncOpenAI  # noqa: PLC0415
+            from openai import AsyncOpenAI
         except ImportError as exc:  # pragma: no cover - depends on optional SDK
             raise RuntimeError(
                 "openai is not installed; install the 'openai' extra."

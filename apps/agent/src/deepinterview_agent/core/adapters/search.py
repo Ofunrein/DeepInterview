@@ -26,7 +26,7 @@ class TavilySearch:
 
     def _client(self) -> Any:
         try:
-            from tavily import TavilyClient  # noqa: PLC0415
+            from tavily import TavilyClient
         except ImportError as exc:  # pragma: no cover - depends on optional SDK
             raise RuntimeError(
                 "tavily-python is not installed; install the 'tavily' extra."
@@ -36,7 +36,7 @@ class TavilySearch:
     async def search(
         self, query: str, *, lang: str = "en", max_results: int = 6
     ) -> list[SearchResult]:
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
         client = self._client()
 

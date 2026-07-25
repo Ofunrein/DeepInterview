@@ -213,7 +213,7 @@ def _skill_library_hint(company: str, role: str, level: str) -> str:
     error) returns an empty string so prep never depends on the skill store.
     """
     try:
-        from ..skilllib import find_relevant  # noqa: PLC0415 - optional, lazy
+        from ..skilllib import find_relevant
 
         skills = find_relevant(company=company, role=role, level=level)
         if not skills:

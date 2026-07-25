@@ -69,7 +69,7 @@ class Interviewer(Agent):
         self,
         userdata: InterviewUserdata,
         *,
-        chat_ctx=None,  # noqa: ANN001 - livekit ChatContext; optional extra absent offline
+        chat_ctx=None,
         extra_instructions: str = "",
     ) -> None:
         instructions = build_instructions(userdata)
@@ -138,7 +138,7 @@ class Interviewer(Agent):
         """
         try:
             await self.update_instructions(build_instructions(ud))
-        except Exception:  # noqa: BLE001 - prompt refresh must never break a turn
+        except Exception:  # noqa: BLE001, S110 - prompt refresh must never break a turn
             pass
 
     @function_tool
@@ -205,14 +205,14 @@ class Interviewer(Agent):
         """
         try:
             self.session.shutdown(drain=True)
-        except Exception:  # noqa: BLE001 - closing must never raise into the turn
+        except Exception:  # noqa: BLE001, S110 - closing must never raise into the turn
             pass
         return "Interview ended. Say nothing further."
 
     @function_tool
     async def start_coding_round(self, context: RunContext[InterviewUserdata]) -> Agent:
         """Hand off to the coding-round persona (native LiveKit agent handoff)."""
-        from .handoffs import CodingRoundAgent  # noqa: PLC0415 - personas subclass Interviewer
+        from .handoffs import CodingRoundAgent
 
         return CodingRoundAgent(context.userdata, chat_ctx=self.chat_ctx)
 
@@ -221,6 +221,6 @@ class Interviewer(Agent):
         self, context: RunContext[InterviewUserdata]
     ) -> Agent:
         """Hand off to the behavioral-round persona (native LiveKit agent handoff)."""
-        from .handoffs import BehavioralAgent  # noqa: PLC0415 - personas subclass Interviewer
+        from .handoffs import BehavioralAgent
 
         return BehavioralAgent(context.userdata, chat_ctx=self.chat_ctx)

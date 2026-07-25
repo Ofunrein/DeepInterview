@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from ..core.deps import Deps
     from ..shared_models import PrepRequest
 
-__all__ = ["run_prep", "run_prep_for_session", "build_prep_graph"]
+__all__ = ["build_prep_graph", "run_prep", "run_prep_for_session"]
 
 log = get_logger(__name__)
 
@@ -152,8 +152,8 @@ async def run_prep_for_session(
         # ground answers in the candidate's CV/JD/company intel. Keyed by
         # session_id — the same key search() uses. Best-effort: never fail prep.
         await _ingest_prep_materials(session_id, req, cv_text, ctx, deps)
-    except Exception as exc:  # noqa: BLE001 - background task: record, don't propagate
-        log.exception("run_prep_for_session(%s) failed: %s", session_id, exc)
+    except Exception:
+        log.exception("run_prep_for_session(%s) failed", session_id)
         try:
             await deps.repo.update_status(session_id, "error")
         except Exception:  # noqa: BLE001 - best-effort status write

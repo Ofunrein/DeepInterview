@@ -38,9 +38,7 @@ export type SessionView = z.infer<typeof SessionViewSchema>;
  * Both are terminal (`!== "prep"`), so pollers stop on them.
  */
 export type ClientSessionStatus =
-  | SessionView["status"]
-  | "not_found"
-  | "stalled";
+  SessionView["status"] | "not_found" | "stalled";
 export type ClientSessionView = Omit<SessionView, "status"> & {
   status: ClientSessionStatus;
 };

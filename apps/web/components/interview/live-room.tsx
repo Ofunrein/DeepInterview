@@ -236,19 +236,28 @@ function LiveSession({
   }, [isMicrophoneEnabled, onMicError]);
 
   // Map streaming transcriptions → turns. "You" when the segment belongs to the
-  // local participant, otherwise the interviewer (agent / avatar worker).
+  // local participant, otherwise the interviewer (agent / avatar worker). STT
+  // finalizes speech in short segments, so consecutive segments from the same
+  // speaker are merged into one turn — one paragraph per speaking turn, not a
+  // new "You" label per sentence fragment.
   const turns: Turn[] = React.useMemo(() => {
     const localIdentity = localParticipant.identity;
-    return transcriptions
-      .filter((t) => t.text.trim().length > 0)
-      .map((t) => ({
-        id: t.streamInfo.id,
-        role:
-          t.participantInfo.identity === localIdentity
-            ? ("candidate" as const)
-            : ("interviewer" as const),
-        text: t.text,
-      }));
+    const merged: Turn[] = [];
+    for (const t of transcriptions) {
+      const text = t.text.trim();
+      if (!text) continue;
+      const role =
+        t.participantInfo.identity === localIdentity
+          ? ("candidate" as const)
+          : ("interviewer" as const);
+      const last = merged[merged.length - 1];
+      if (last?.role === role) {
+        last.text = `${last.text} ${text}`;
+      } else {
+        merged.push({ id: t.streamInfo.id, role, text });
+      }
+    }
+    return merged;
   }, [transcriptions, localParticipant.identity]);
 
   async function toggleMute() {
