@@ -1,6 +1,6 @@
 [project]
 name = "deepinterview-lightrag"
-version = "0.1.0"
+version = "0.2.0"
 description = "DeepInterview knowledge sidecar — NaiveRAG by default, LightRAG + RAG-Anything + bge-m3 as an optional extra (WP-8)."
 license = "Apache-2.0"
 requires-python = ">=3.11"
