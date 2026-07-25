@@ -25,8 +25,8 @@
 
 ---
 
-<!-- HERO: DeepInterview setup — the main entry point. -->
-![DeepInterview demo](assets/screenshot-setup.png)
+<!-- HERO: live voice interview → scored report, recorded from the real app. -->
+![DeepInterview demo — a live voice interview with streaming captions, then the scored report](assets/demo.gif)
 
 > **Upload your CV and a job description. Talk to an AI interviewer. Get scored — and coached on exactly what you missed.** Voice-first, English-first, and multilingual by design.
 

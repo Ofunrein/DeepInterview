@@ -17,3 +17,10 @@ Brand + marketing assets for the README hero and docs.
 - **Logo:** SVG is the source of truth. If a raster `logo.png` is ever needed (some registries want PNG), export from `logo.svg` at 512×512.
 
 > The hero `demo.gif` is the top item on the WP-13 launch checklist — the README references it today, but the file itself is still to be recorded.
+
+## demo.gif
+
+Hero demo for the main README: live interview room (Dana speaking, captions
+streaming, text-input answer, adaptive follow-up) → scored report. Recorded
+from the real app via browser automation on the offline demo CV/JD (no real
+candidate PII), 1502×717, 16 frames, ~2.1 MB. Re-record after major UI changes.
