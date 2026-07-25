@@ -57,6 +57,11 @@ const FALLBACK_STYLE: Record<
     glow: "radial-gradient(120% 90% at 50% 18%, rgba(120,140,130,0.20), transparent 60%)",
     accent: "#4a6b5d",
   },
+  professor: {
+    gradient: "linear-gradient(165deg, #f9f6f0 0%, #f0ece2 55%, #e8e4da 100%)",
+    glow: "radial-gradient(120% 90% at 50% 18%, rgba(160,140,100,0.20), transparent 60%)",
+    accent: "#7a6b42",
+  },
 };
 
 type LayerStatus = "loading" | "ready" | "error";

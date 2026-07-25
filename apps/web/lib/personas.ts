@@ -15,7 +15,7 @@
  */
 
 /** Stable persona ids used across the pipeline and the Veo render scripts. */
-export type PersonaId = "anime" | "superhero" | "recruiter";
+export type PersonaId = "anime" | "superhero" | "recruiter" | "professor";
 
 export interface Persona {
   /** Stable id sent through the interview pipeline. */
@@ -56,6 +56,14 @@ export const PERSONAS: Persona[] = [
     poster_url: "/avatars/recruiter.jpg",
     idle_url: "/avatars/recruiter-idle.mp4",
     speaking_url: "/avatars/recruiter-speaking.mp4",
+  },
+  {
+    id: "professor",
+    name: "Dr. Chen",
+    style: "Calm, thoughtful academic who probes deeply and values precision.",
+    poster_url: "/avatars/professor.jpg",
+    idle_url: "/avatars/professor-idle.mp4",
+    speaking_url: "/avatars/professor-speaking.mp4",
   },
 ];
 

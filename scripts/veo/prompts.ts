@@ -25,7 +25,7 @@
 
 /** Mirrors `PersonaId` in apps/web/lib/personas.ts — kept local to avoid an
  * `@/` import that wouldn't resolve outside the web package. */
-export type PersonaId = "anime" | "superhero" | "recruiter";
+export type PersonaId = "anime" | "superhero" | "recruiter" | "professor";
 
 export interface VeoPromptSet {
   /** Prompt for the single reference still (first frame of both loops). */
@@ -66,7 +66,13 @@ export const VEO_PROMPTS: Record<PersonaId, VeoPromptSet> = {
     idle: `Medium close-up, photorealistic. A fictional professional male recruiter, late thirties, short tidy hair, light beard, navy blazer over white shirt, warm approachable expression, not resembling any real person. Subtle breathing, natural blinking, slight head movement. Clean light-grey office-studio background with soft bokeh, soft three-point lighting, warm key from left. No dialogue, quiet office ambience. Static camera. First frame matches last frame for a seamless loop. ${IP_RULE}`,
     speaking: `Same fictional male recruiter — same blazer, hair, background, soft three-point lighting, medium close-up. Speaks in a warm professional manner to camera, natural lip movement, occasional reassuring nods and a small open-hand gesture, attentive expression. No specific dialogue audio, quiet office ambience. Static camera. First frame matches last frame for a seamless loop. ${IP_RULE}`,
   },
+  // (d) Academic / professor
+  professor: {
+    reference: `Medium close-up, photorealistic. A fictional female academic professor, mid-forties, round glasses, shoulder-length grey-streaked hair, tweed blazer over a collared shirt, thoughtful calm expression, eyeline to camera, not resembling any real person. Warm wood-panelled study background with bookshelves out of focus, soft warm library lighting. Static camera. ${IP_RULE}`,
+    idle: `Medium close-up, photorealistic. A fictional female academic professor, mid-forties, round glasses, shoulder-length grey-streaked hair, tweed blazer over a collared shirt, thoughtful calm expression. Subtle breathing, natural blinking, slight nod. Warm wood-panelled study background with bookshelves out of focus, soft warm library lighting. No dialogue, quiet room tone. Static camera. First frame matches last frame for a seamless loop. ${IP_RULE}`,
+    speaking: `Same fictional female professor — same glasses, blazer, hair, warm study background, medium close-up. Speaks in a measured, thoughtful manner to camera, precise lip movement, occasional raised eyebrow or small gesture like pointing for emphasis, engaged scholarly expression. No specific dialogue audio, quiet ambience. Static camera. First frame matches last frame for a seamless loop. ${IP_RULE}`,
+  },
 };
 
 /** Ordered list of persona ids for CLI iteration. */
-export const PERSONA_IDS: PersonaId[] = ["anime", "superhero", "recruiter"];
+export const PERSONA_IDS: PersonaId[] = ["anime", "superhero", "recruiter", "professor"];
