@@ -45,3 +45,34 @@ def test_question_plan_survives_trailing_extra_data() -> None:
     payload = plan.model_dump_json() + '\n\n{"note": "duplicate emission"}'
     parsed = QuestionPlan.model_validate(_loads_json(payload))
     assert parsed.model_dump() == plan.model_dump()
+
+
+# --- reasoning-block stripping (the local/Qwen3 path) -------------------------
+
+
+def test_loads_json_strips_think_block() -> None:
+    """A <think> block must be removed BEFORE the first-brace scan.
+
+    Qwen3 via Ollama routinely emits its scratchpad inline in `content`. The
+    tolerant parser below takes the FIRST '{' it finds, so a brace anywhere in
+    that scratchpad would be decoded as the answer — yielding a valid-looking
+    but wrong object, or a parse failure that drops the pipeline to the mock.
+    """
+    raw = '<think>Maybe {"decoy": 1} would work? No.</think>\n{"real": true}'
+    assert _loads_json(raw) == {"real": True}
+
+
+def test_loads_json_strips_unterminated_think_tail() -> None:
+    """A reply cut off mid-thought has no closing tag; the tail is never JSON."""
+    raw = '{"real": true}\n<think>now let me double check {"decoy": 2}'
+    assert _loads_json(raw) == {"real": True}
+
+
+def test_loads_json_think_block_is_case_and_tag_insensitive() -> None:
+    assert _loads_json('<THINKING>{"decoy": 1}</THINKING>{"real": 1}') == {"real": 1}
+
+
+def test_loads_json_leaves_cloud_responses_untouched() -> None:
+    """No <think> tags means byte-identical behaviour for Gemini/OpenAI."""
+    assert _loads_json('{"a": 1}') == {"a": 1}
+    assert _loads_json('```json\n{"a": 1}\n```') == {"a": 1}

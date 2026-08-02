@@ -49,6 +49,7 @@ from .live.state import InterviewUserdata, weak_areas_summary
 from .worker import (
     _load_context_via_api,
     _session_id_from_room,
+    build_conn_options,
     build_llm,
     build_room_options,
     build_stt,
@@ -83,16 +84,21 @@ async def entrypoint(ctx: JobContext) -> None:
     # turns were captured at all, with an empty list).
     userdata = InterviewUserdata(ctx=interview_ctx, session_id=session_id)
 
+    # Shared with build_stt: the local Whisper path segments the mic with it.
+    vad = build_vad()
+    conn_options = build_conn_options(settings)
     session: AgentSession[InterviewUserdata] = AgentSession(
         userdata=userdata,
-        stt=build_stt(settings, primary),
+        stt=build_stt(settings, primary, vad=vad),
         llm=build_llm(settings),
         tts=build_tts(settings, primary),
-        vad=build_vad(),
+        vad=vad,
         # Same noisy-environment defenses as the interview worker (semantic
         # end-of-turn + word-gated interruptions); preemptive generation is on
         # by default in 1.5.x.
         turn_handling=build_turn_handling(primary),
+        # Local providers need a longer per-request ceiling; None = SDK default.
+        **({"conn_options": conn_options} if conn_options else {}),
     )
 
     # Capture the real coach conversation (CoachAgent has no tools, so nothing

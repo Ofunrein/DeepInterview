@@ -589,3 +589,211 @@ def test_shutdown_repo_save_context_failure_marks_error_and_skips_scoring(
     assert ("update_status:error", drive.session_id) in drive.repo.calls
     assert build_deps().repo.get_status(drive.session_id) == "error"
     assert not any(u.endswith("/api/score") for u in drive.http.urls())
+
+
+# --- local providers: the "no cloud model keys" path --------------------------
+#
+# Construction-only, like the Deepgram tests above: none of these plugin
+# __init__s perform network I/O (each only builds an AsyncClient), so the whole
+# block stays offline. Every assertion here pins a failure mode that is SILENT
+# in production — wrong audio branch, wrong language token, a cloud provider
+# quietly substituted for the local one.
+
+
+def _local_settings(**overrides):
+    base = {
+        "llm_provider": "mock",
+        "stt_provider": "mock",
+        "tts_provider": "mock",
+        "ollama_base_url": "http://localhost:11434/v1",
+        "ollama_model": "qwen3:8b",
+        "whisper_base_url": "http://localhost:8000/v1",
+        "whisper_model": "Systran/faster-whisper-small",
+        "kokoro_base_url": "http://localhost:8880/v1",
+        "kokoro_model": "tts-1",
+        "kokoro_voice": "",
+        "kokoro_response_format": "pcm",
+        "local_api_key": "local",
+        "local_provider_timeout_sec": 30.0,
+        "gemini_api_key": None,
+        "elevenlabs_api_key": None,
+        "elevenlabs_model": "eleven_flash_v2_5",
+        "cartesia_api_key": None,
+        "gemini_tts_model": "gemini-2.5-flash-preview-tts",
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def test_build_llm_ollama_points_at_local_server() -> None:
+    """LLM_PROVIDER=ollama must build a local client, never the keyless default.
+
+    worker.build_llm's last resort is ``openai.LLM()`` — which talks to
+    api.openai.com. If the ollama branch is ever removed or reordered, the
+    "runs locally" path silently becomes a cloud call.
+    """
+    pytest.importorskip("livekit.plugins.openai")
+    llm = worker.build_llm(_local_settings(llm_provider="ollama"))
+    assert str(llm._client.base_url).startswith("http://localhost:11434")
+    assert llm._opts.model == "qwen3:8b"
+
+
+def test_build_stt_whisper_wraps_in_stream_adapter() -> None:
+    """openai.STT is a BATCH client; unwrapped it cannot drive a live session.
+
+    Its capabilities are streaming=use_realtime (False here), so it must be
+    wrapped in the SDK's StreamAdapter, which VAD-segments the mic and re-exposes
+    streaming=True. Without the wrapper AgentSession has no streaming STT.
+    """
+    pytest.importorskip("livekit.plugins.openai")
+    from livekit.plugins import openai as lk_openai
+
+    stt = worker.build_stt(_local_settings(stt_provider="whisper"), "en", vad=SimpleNamespace())
+    assert stt.capabilities.streaming is True
+    assert isinstance(stt.wrapped_stt, lk_openai.STT)
+    assert stt.wrapped_stt.capabilities.streaming is False
+    assert str(stt.wrapped_stt._client.base_url).startswith("http://localhost:8000")
+
+
+def test_build_stt_whisper_code_switching_uses_detect_language() -> None:
+    """mixed=True must NOT send "multi" — that is a Deepgram model name.
+
+    _stt_lang returns "multi" for code-switching sessions. Whisper rejects it and
+    returns NO transcripts at all — the same silent failure class as the
+    nova-3+vi bug. Whisper's own mechanism is detect_language.
+    """
+    pytest.importorskip("livekit.plugins.openai")
+    stt = worker.build_stt(
+        _local_settings(stt_provider="whisper"), "vi", mixed=True, vad=SimpleNamespace()
+    )
+    assert stt.wrapped_stt._opts.detect_language is True
+    assert str(stt.wrapped_stt._opts.language) != "multi"
+
+
+def test_build_tts_kokoro_uses_the_audio_branch_not_sse() -> None:
+    """The model id decides the transport, and the wrong one is SILENT.
+
+    openai.TTS routes to AudioChunkedStream only for models in
+    AUDIO_STREAM_MODELS; anything else goes to SSEChunkedStream, which parses
+    "data:" lines. Kokoro returns raw audio, so that branch emits no frames and
+    raises nothing — the agent simply never speaks.
+    """
+    pytest.importorskip("livekit.plugins.openai")
+    from livekit.plugins.openai.tts import AUDIO_STREAM_MODELS
+
+    tts = worker.build_tts(_local_settings(tts_provider="kokoro"), "en")
+    assert tts._wrapped_tts._opts.model in AUDIO_STREAM_MODELS
+    assert tts._wrapped_tts._opts.response_format == "pcm"
+    # Wrapped for sentence-at-a-time synthesis: openai.TTS is non-streaming, so
+    # unwrapped the agent would buffer a whole answer before speaking.
+    assert tts.capabilities.streaming is True
+
+
+def test_build_tts_kokoro_coerces_a_model_that_would_be_silent() -> None:
+    tts = worker.build_tts(_local_settings(tts_provider="kokoro", kokoro_model="kokoro"), "en")
+    assert tts._wrapped_tts._opts.model == "tts-1"
+
+
+def test_build_tts_kokoro_picks_the_voice_from_the_language() -> None:
+    """Kokoro encodes language in the voice-id prefix, so voice IS language."""
+    en = worker.build_tts(_local_settings(tts_provider="kokoro"), "en")
+    ja = worker.build_tts(_local_settings(tts_provider="kokoro"), "ja")
+    assert en._wrapped_tts._opts.voice == "af_heart"
+    assert ja._wrapped_tts._opts.voice == "jf_alpha"
+    # An explicit KOKORO_VOICE always wins.
+    pinned = worker.build_tts(
+        _local_settings(tts_provider="kokoro", kokoro_voice="bf_emma"), "en"
+    )
+    assert pinned._wrapped_tts._opts.voice == "bf_emma"
+
+
+def test_build_tts_kokoro_beats_the_cloud_language_reroute() -> None:
+    """An explicit local selection must never be upgraded to a paid vendor.
+
+    build_tts reroutes languages Cartesia can't speak to ElevenLabs/Gemini. A
+    stray ELEVENLABS_API_KEY in .env must not turn the "100% local" path into a
+    cloud call for a language Kokoro DOES speak.
+    """
+    tts = worker.build_tts(
+        _local_settings(tts_provider="kokoro", elevenlabs_api_key="x"), "ja"
+    )
+    assert tts._wrapped_tts._opts.voice == "jf_alpha"
+
+
+def test_build_tts_kokoro_falls_back_for_a_language_it_cannot_speak() -> None:
+    """Kokoro has no Vietnamese voice; speaking vi with an English one is worse
+    than honestly falling through to the cloud chain."""
+    pytest.importorskip("livekit.plugins.elevenlabs")
+    from livekit.plugins import elevenlabs
+
+    tts = worker.build_tts(_local_settings(tts_provider="kokoro", elevenlabs_api_key="x"), "vi")
+    assert isinstance(tts, elevenlabs.TTS), "vi must reroute to a voice that speaks it"
+
+
+def test_build_conn_options_only_widens_for_local_providers() -> None:
+    """The SDK's 10s per-request ceiling kills local turns before the first token.
+
+    Cloud path must keep the SDK default (None), or this change would silently
+    alter production timeout behaviour for every existing deployment.
+    """
+    assert worker.build_conn_options(_local_settings()) is None
+    assert worker.build_conn_options(_local_settings(llm_provider="gemini")) is None
+
+    opts = worker.build_conn_options(_local_settings(llm_provider="ollama"))
+    assert opts is not None
+    assert opts.llm_conn_options.timeout == 30.0
+    assert opts.stt_conn_options.timeout == 30.0
+    # A local endpoint that is down stays down: don't wedge the turn on retries.
+    assert opts.llm_conn_options.max_retry == 1
+
+
+def test_unreachable_local_providers_names_the_url_and_env_var() -> None:
+    """A local server that isn't running is the local path's missing API key.
+
+    Without this the candidate joins and only THEN does the first turn fail.
+    """
+    settings = _local_settings(llm_provider="ollama", ollama_base_url="http://127.0.0.1:1/v1")
+    problems = worker._unreachable_local_providers(settings)
+    assert len(problems) == 1
+    assert "OLLAMA_BASE_URL" in problems[0]
+    assert "http://127.0.0.1:1/v1" in problems[0]
+
+    # Blank URL is reported as missing config, not as a connection failure.
+    blank = worker._unreachable_local_providers(
+        _local_settings(tts_provider="kokoro", kokoro_base_url="")
+    )
+    assert blank == ["KOKORO_BASE_URL (TTS_PROVIDER=kokoro)"]
+
+    # All-cloud selection probes nothing.
+    assert worker._unreachable_local_providers(_local_settings(llm_provider="gemini")) == []
+
+
+def test_local_provider_values_are_case_insensitive_and_aliased() -> None:
+    """The provider value names a CONTRACT, not a vendor — and case must not matter.
+
+    Two things this pins. First, the builders once compared the raw string while
+    preflight lowercased it, so ``STT_PROVIDER=Whisper`` passed the credential
+    check and then fell through to the DEEPGRAM default — a cloud call on the
+    "no cloud keys" path. Second, any server speaking the OpenAI shape works
+    (Whisper, Qwen3-ASR, vLLM, LM Studio), so each stage accepts aliases and the
+    neutral value ``local``.
+    """
+    from livekit.plugins import openai as lk_openai
+
+    for value in ("whisper", "Whisper", "QWEN3-ASR", "qwen-asr", "local", " speaches "):
+        stt = worker.build_stt(
+            _local_settings(stt_provider=value), "en", vad=SimpleNamespace()
+        )
+        assert isinstance(stt.wrapped_stt, lk_openai.STT), f"{value!r} must stay local"
+        assert str(stt.wrapped_stt._client.base_url).startswith("http://localhost:8000")
+
+    for value in ("ollama", "Ollama", "vllm", "lmstudio", "local"):
+        llm = worker.build_llm(_local_settings(llm_provider=value))
+        assert str(llm._client.base_url).startswith("http://localhost:11434"), value
+
+    for value in ("kokoro", "Kokoro", "local"):
+        tts = worker.build_tts(_local_settings(tts_provider=value), "en")
+        assert tts._wrapped_tts._opts.voice == "af_heart", value
+
+    # And an unknown value must NOT be treated as local.
+    assert worker._unreachable_local_providers(_local_settings(stt_provider="deepgram")) == []

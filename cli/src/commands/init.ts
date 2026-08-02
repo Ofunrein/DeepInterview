@@ -89,6 +89,7 @@ async function collectLlm(existing: Values, values: Values): Promise<void> {
       options: [
         { value: "gemini", label: "Google Gemini", hint: "default" },
         { value: "openai", label: "OpenAI" },
+        { value: "ollama", label: "Ollama (local)", hint: "no key" },
         { value: "mock", label: "Mock — offline, no key" },
       ],
     }),
@@ -103,6 +104,18 @@ async function collectLlm(existing: Values, values: Values): Promise<void> {
     values.OPENAI_API_KEY = await secret(
       "OpenAI API key",
       existing.OPENAI_API_KEY,
+    );
+  } else if (provider === "ollama") {
+    // Local servers authenticate with nothing — a base URL replaces the key.
+    values.OLLAMA_BASE_URL = await field(
+      "Ollama base URL",
+      existing.OLLAMA_BASE_URL,
+      "http://localhost:11434/v1",
+    );
+    values.OLLAMA_MODEL = await field(
+      "Ollama model",
+      existing.OLLAMA_MODEL || "qwen3:8b",
+      "qwen3:8b",
     );
   }
 }
@@ -119,10 +132,19 @@ async function collectStt(existing: Values, values: Values): Promise<void> {
           hint: "nova-3, the tested path",
         },
         { value: "soniox", label: "Soniox" },
+        { value: "whisper", label: "Whisper (local)", hint: "no key" },
       ],
     }),
   );
   values.STT_PROVIDER = provider;
+  if (provider === "whisper") {
+    values.WHISPER_BASE_URL = await field(
+      "Whisper server base URL (OpenAI-compatible)",
+      existing.WHISPER_BASE_URL,
+      "http://localhost:8000/v1",
+    );
+    return;
+  }
   const key = provider === "deepgram" ? "DEEPGRAM_API_KEY" : "SONIOX_API_KEY";
   values[key] = await secret(`${provider} API key`, existing[key]);
 }
@@ -135,10 +157,22 @@ async function collectTts(existing: Values, values: Values): Promise<void> {
       options: [
         { value: "cartesia", label: "Cartesia", hint: "default" },
         { value: "elevenlabs", label: "ElevenLabs" },
+        { value: "kokoro", label: "Kokoro (local)", hint: "no key" },
       ],
     }),
   );
   values.TTS_PROVIDER = provider;
+  if (provider === "kokoro") {
+    values.KOKORO_BASE_URL = await field(
+      "Kokoro base URL (OpenAI-compatible)",
+      existing.KOKORO_BASE_URL,
+      "http://localhost:8880/v1",
+    );
+    // Pinned, not asked: this id selects the raw-audio transport in the
+    // OpenAI plugin. Any other value silently yields no audio at all.
+    values.KOKORO_MODEL = "tts-1";
+    return;
+  }
   const key =
     provider === "cartesia" ? "CARTESIA_API_KEY" : "ELEVENLABS_API_KEY";
   values[key] = await secret(`${provider} API key`, existing[key]);
@@ -230,6 +264,11 @@ async function runWizard(existing: Values): Promise<Values> {
           hint: "real AI, no microphone",
         },
         {
+          value: "local",
+          label: "100% local models",
+          hint: "Ollama + Whisper + Kokoro — no model keys",
+        },
+        {
           value: "offline",
           label: "Offline demo",
           hint: "zero keys — mock providers",
@@ -237,6 +276,51 @@ async function runWizard(existing: Values): Promise<Values> {
       ],
     }),
   );
+
+  if (mode === "local") {
+    values.LLM_PROVIDER = "ollama";
+    values.STT_PROVIDER = "whisper";
+    values.TTS_PROVIDER = "kokoro";
+    // Company research is the one remaining outbound call; keep it offline so
+    // "no data leaves your machine" is actually true in this mode.
+    values.SEARCH_PROVIDER = "mock";
+    values.EMBEDDINGS_PROVIDER = "mock";
+    // Local models are slower; the cloud defaults (90s/60s) time out and
+    // silently degrade prep and scoring to generic results.
+    values.LLM_CALL_TIMEOUT_SEC = "300";
+    values.SCORE_STAGE_TIMEOUT_SEC = "300";
+    values.OLLAMA_BASE_URL = await field(
+      "Ollama base URL",
+      existing.OLLAMA_BASE_URL,
+      "http://localhost:11434/v1",
+    );
+    values.OLLAMA_MODEL = await field(
+      "Ollama model",
+      existing.OLLAMA_MODEL || "qwen3:8b",
+      "qwen3:8b",
+    );
+    values.WHISPER_BASE_URL = await field(
+      "Whisper server base URL (OpenAI-compatible)",
+      existing.WHISPER_BASE_URL,
+      "http://localhost:8000/v1",
+    );
+    values.KOKORO_BASE_URL = await field(
+      "Kokoro base URL (OpenAI-compatible)",
+      existing.KOKORO_BASE_URL,
+      "http://localhost:8880/v1",
+    );
+    values.KOKORO_MODEL = "tts-1";
+    note(
+      "Every model runs on your machine — no LLM, STT or TTS keys.\n" +
+        "LiveKit is still the real-time transport: use LiveKit Cloud, or run\n" +
+        "`livekit-server --dev` locally for a fully offline stack.\n" +
+        "See docs/LOCAL_MODELS.md for the model-server setup.",
+      "100% local models",
+    );
+    await collectLiveKit(existing, values);
+    await collectSupabase(existing, values);
+    return values;
+  }
 
   if (mode === "offline") {
     values.LLM_PROVIDER = "mock";

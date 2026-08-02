@@ -111,6 +111,67 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── Local model servers (the "no cloud model keys" path) ───────────────────
+  # Gated behind the `local` profile, exactly like the voice worker above, so
+  # the base stack never pulls these multi-GB images:
+  #   docker compose --profile local --profile live up
+  # Then select them:  LLM_PROVIDER=ollama STT_PROVIDER=whisper TTS_PROVIDER=kokoro
+  #
+  # NOTE for macOS: Docker Desktop has no GPU passthrough, so an Ollama running
+  # in this container is CPU-only and far too slow for a live voice loop. On a
+  # Mac, run Ollama natively (it uses Metal) and point the agent at it with
+  # OLLAMA_BASE_URL=http://host.docker.internal:11434/v1 instead of using this
+  # service. That is exactly why these are base URLs and not hard-coded hosts.
+  ollama:
+    image: ollama/ollama:latest
+    profiles:
+      - local
+    ports:
+      - "127.0.0.1:11434:11434"
+    environment:
+      # The truncation fix: Ollama's default context window cannot hold a CV +
+      # JD + the JSON schema, and it truncates SILENTLY — producing a well-formed
+      # plan about a candidate the model never actually read.
+      - OLLAMA_CONTEXT_LENGTH=16384
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+  # One-shot: pulls the model so the first interview doesn't 404. Exits when done.
+  ollama-pull:
+    image: ollama/ollama:latest
+    profiles:
+      - local
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint:
+      - /bin/sh
+      - -c
+      - ollama pull ${OLLAMA_MODEL:-qwen3:8b}
+    restart: "no"
+
+  # STT: any OpenAI-compatible /v1/audio/transcriptions server.
+  whisper:
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    profiles:
+      - local
+    ports:
+      - "127.0.0.1:8001:8000"
+    volumes:
+      - whisper-models:/home/ubuntu/.cache/huggingface
+    restart: unless-stopped
+
+  # TTS: kokoro-fastapi speaks the OpenAI /v1/audio/speech shape.
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    profiles:
+      - local
+    ports:
+      - "127.0.0.1:8880:8880"
+    restart: unless-stopped
+
   web:
     build:
       context: .
@@ -153,3 +214,9 @@ services:
       retries: 5
       start_period: 20s
     restart: unless-stopped
+
+volumes:
+  # Model weights for the `local` profile — multi-GB, so they persist across
+  # `docker compose down` and are never re-downloaded.
+  ollama-models:
+  whisper-models:

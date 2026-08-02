@@ -1,6 +1,6 @@
 [project]
 name = "deepinterview-agent"
-version = "0.2.0"
+version = "0.3.0"
 description = "DeepInterview live voice interviewer + prep/post pipelines (WP-0 shell)."
 license = "Apache-2.0"
 requires-python = ">=3.11"
