@@ -61,7 +61,18 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_model: str = "qwen3:8b"
     whisper_base_url: str = "http://localhost:8000/v1"
-    whisper_model: str = "Systran/faster-whisper-small"
+    # `base` (multilingual), NOT `small`. Measured on an M5 Pro with the LLM
+    # generating concurrently — the condition that actually holds mid-interview,
+    # since the next utterance is transcribed while the agent is still replying:
+    #   tiny.en  0.06x realtime idle / 0.13x under load
+    #   base     0.09x                / ~0.7x
+    #   small    0.40x                / 0.77x, ~3.4 GB resident
+    # The plugin hard-codes a 30s read timeout that no setting can raise, so the
+    # headroom has to come from the model. `small` in a memory-constrained
+    # Docker VM blew straight through it and the turn died with
+    # "failed to recognize speech". `base` is ~10x lighter and just as accurate
+    # on interview speech. Use `small`/`medium` only with a GPU.
+    whisper_model: str = "Systran/faster-whisper-base"
     kokoro_base_url: str = "http://localhost:8880/v1"
     # MUST stay in the openai plugin's AUDIO_STREAM_MODELS = {"tts-1","tts-1-hd"}.
     # Any other id routes synthesis down its SSE branch, which parses "data:"

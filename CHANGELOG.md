@@ -19,9 +19,17 @@ Tagged releases: [GitHub Releases](https://github.com/ngoanpv/DeepInterview/rele
   Whisper round trip through the real worker builders returned the spoken
   sentence verbatim (3.25s of 24 kHz PCM). Provider selection, fallback and
   voice/language routing are covered by offline unit tests.
+- **The Whisper default is `faster-whisper-base`, deliberately.** The OpenAI
+  plugin hard-codes a 30s per-request timeout that no setting can raise, so an
+  oversized model doesn't degrade — the turn dies with `failed to recognize
+  speech`. `small` needs ~3.4 GB resident and, in a memory-tight Docker VM, took
+  32s on a 3.6s clip; `base` needs ~220 MB, runs at ~0.09x realtime, and was just
+  as accurate on interview speech. Sizes and per-model timings under concurrent
+  LLM load are in [docs/LOCAL_MODELS.md](docs/LOCAL_MODELS.md).
 - **Not verified, so not claimed:** turn latency on local models is not
-  benchmarked, a full microphone session in a LiveKit room has not been run, and
-  the local path is maintainer-tested rather than CI-tested (CI has no models). Kokoro has no Vietnamese voice — `vi` sessions fall back to
+  benchmarked, a full microphone session in a LiveKit room has not yet completed
+  end to end, and the local path is maintainer-tested rather than CI-tested (CI
+  has no models). Tuning local turn latency is tracked as follow-up work. Kokoro has no Vietnamese voice — `vi` sessions fall back to
   a cloud voice rather than mispronouncing it. Local STT is batch, so live
   captions arrive per utterance instead of word by word.
 - **LiveKit remains the real-time transport** even on the local path. Use LiveKit

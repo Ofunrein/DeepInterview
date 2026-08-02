@@ -62,8 +62,28 @@ docker run -d -p 8001:8000 ghcr.io/speaches-ai/speaches:latest-cpu
 
 # Speaches ships no weights — download the model once, or every transcription
 # 404s with "Model ... is not installed locally".
-curl -X POST http://localhost:8001/v1/models/Systran/faster-whisper-small
+curl -X POST http://localhost:8001/v1/models/Systran/faster-whisper-base
 ```
+
+**Pick the smallest Whisper that's accurate enough — this matters more than it
+looks.** The OpenAI plugin hard-codes a **30-second per-request timeout that no
+setting can raise**, so a slow transcription doesn't degrade gracefully; the turn
+dies with `failed to recognize speech`. Measured on an M5 Pro with the local LLM
+generating at the same time — the condition that actually holds mid-interview,
+since the next utterance is transcribed while the agent is still replying:
+
+| Model | Idle | Under LLM load | Resident |
+|---|---|---|---|
+| `faster-whisper-tiny.en` | 0.06× realtime | 0.13× | very small |
+| **`faster-whisper-base`** (default) | 0.09× | ~0.7× | **~220 MB** |
+| `faster-whisper-small` | 0.40× | 0.77× | **~3.4 GB** |
+
+Accuracy on interview speech was indistinguishable across all three, so `small`
+bought nothing and cost 15× the memory. It first showed up as a hang, not a
+slowdown: inside a memory-constrained Docker VM (Docker Desktop defaults to a
+fraction of host RAM, shared by *every* container you're running) `small` pushed
+the VM into swap and a 3.6-second clip took **32 seconds**. Use `small` or
+`medium` only with a GPU.
 
 ### TTS — Kokoro
 
@@ -174,6 +194,7 @@ voice is untested, as is any hardware other than the above.
 | Agent **never speaks**, no error | `KOKORO_MODEL` isn't `tts-1` | set it back; check the worker log for the coercion warning |
 | Speech is **chipmunk or slow-motion** | your TTS server isn't returning 24 kHz audio | the plugin decodes at a fixed 24 kHz; Kokoro's native rate already matches |
 | Agent **never hears you** | Whisper server unreachable or rejecting requests | the worker refuses to start a session against an unreachable local server and names the URL + env var; check that error first |
+| `failed to recognize speech after N attempts` in the worker log | transcription exceeded the plugin's fixed 30s ceiling — almost always too large a Whisper model, or memory pressure in the Docker VM | drop to `WHISPER_MODEL=Systran/faster-whisper-base` (or `tiny.en`); check `docker stats` for a server holding multiple GB, and raise Docker Desktop's memory allocation |
 | Turns die after ~10s | per-request ceiling | handled automatically — selecting any local provider widens it to 30s (`LOCAL_PROVIDER_TIMEOUT_SEC`) |
 
 ---
