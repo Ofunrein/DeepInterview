@@ -180,10 +180,22 @@ On an Apple M5 Pro (24 GB), Ollama 0.32.5 + `qwen3:8b`, Speaches
 - Provider selection, fallback, and the language/voice routing are covered by
   unit tests that run with no models installed.
 
-**Not verified, and therefore not claimed:** turn latency, barge-in feel, and a
-full microphone-in-a-LiveKit-room session — that last one needs a human to speak,
-so it is not something CI or a scripted check can stand in for. Non-English local
-voice is untested, as is any hardware other than the above.
+- **A live microphone interview, end to end.** A real LiveKit session with a
+  human speaking: the agent spoke in Kokoro's voice, the local Whisper server
+  returned real transcripts, and the report rendered `complete` — with zero
+  recognition failures and zero stages falling back to a cloud provider.
+
+**One thing to expect with small local models.** In that run `qwen3:8b` did not
+reliably call the `save_answer` tool mid-interview, so the worker's shutdown-time
+transcript recovery supplied the answer instead. The report was still correct —
+that safety net is pre-existing and is exactly what it's for — but a local model
+leans on it more than Gemini or GPT do. If your report looks thin, check the
+worker log for `recovered N answer(s) from transcript`; a larger model calls the
+tool more consistently.
+
+**Not verified, and therefore not claimed:** turn latency and barge-in feel are
+not benchmarked. Non-English local voice is untested, as is any hardware other
+than the above.
 
 ## 5. When it goes wrong
 
@@ -216,3 +228,46 @@ stage. DeepInterview needs to own the LLM turn itself (the interviewer calls
 a black-box pipeline that answers for us can't slot into the cascade. If it ever
 grows a transcription-only session mode, it would drop straight into
 `STT_PROVIDER`.
+
+---
+
+## Compatibility: the adapter follows a contract, not a vendor
+
+Each stage talks to **one OpenAI-format endpoint over a base URL**. Anything that
+speaks that shape works — swapping the server means changing a URL and a model
+name, never code. The provider value is case-insensitive and takes aliases, so
+you can name what you actually run (or just say `local`).
+
+| Stage | Endpoint the adapter calls | Accepted `*_PROVIDER` values | Known-working servers |
+|---|---|---|---|
+| **LLM** | `POST /v1/chat/completions` | `ollama` · `vllm` · `llamacpp` · `lmstudio` · `local` | Ollama *(verified)*, vLLM, LM Studio, llama.cpp, LocalAI |
+| **STT** | `POST /v1/audio/transcriptions` | `whisper` · `faster-whisper` · `qwen3-asr` · `qwen-asr` · `speaches` · `local` | Speaches / faster-whisper *(verified)*, **Qwen3-ASR**, whisper.cpp server, vLLM |
+| **TTS** | `POST /v1/audio/speech` | `kokoro` · `local` | kokoro-fastapi *(verified)* |
+
+*(verified)* means it was run end to end for the v0.3.0 release; the others
+implement the same endpoint but haven't been exercised here.
+
+### Qwen3-ASR instead of Whisper
+
+[Qwen3-ASR](https://github.com/QwenLM/Qwen3-ASR) (Alibaba, 52 languages) is a
+strong alternative — particularly for non-English sessions, where Whisper's
+smaller checkpoints weaken. Community servers wrap it behind the same
+OpenAI-compatible `/v1/audio/transcriptions` route, and vLLM supports it
+natively, so it drops in with no code change:
+
+```bash
+STT_PROVIDER=qwen3-asr
+WHISPER_BASE_URL=http://localhost:8001/v1     # wherever you serve it
+WHISPER_MODEL=Qwen/Qwen3-ASR-1.7B
+```
+
+The same 30-second-per-request ceiling applies, so check your throughput on your
+own hardware before committing to it for live interviews.
+
+### Adding a stage your server does differently
+
+If a server deviates from the OpenAI shape, the change is contained to one
+builder in `apps/agent/src/deepinterview_agent/worker.py`
+(`_local_whisper_stt`, `_local_kokoro_tts`, `build_llm`) plus `get_llm` in
+`core/adapters/llm.py` for the prep/scoring path. Everything else — provider
+selection, preflight, timeouts, language routing — is already stage-generic.

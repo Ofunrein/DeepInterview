@@ -112,7 +112,7 @@ Practicing in your head (or in a text chat) isn't how interviews work. DeepInter
 
 | Stage | Choose with | Cloud vendors (pick one) | Fully local | No key set |
 |---|---|---|---|---|
-| **STT** | `STT_PROVIDER` | **Deepgram nova-3** (default) · Soniox | **`whisper`** — any OpenAI-compatible Whisper server | mock adapter |
+| **STT** | `STT_PROVIDER` | **Deepgram nova-3** (default) · Soniox | **`whisper`** · **`qwen3-asr`** — any OpenAI-compatible server | mock adapter |
 | **TTS** | `TTS_PROVIDER` | **Cartesia sonic** (default) · ElevenLabs Flash v2.5 · Gemini TTS | **`kokoro`** — kokoro-fastapi | mock adapter |
 | **LLM** | `LLM_PROVIDER` | **Gemini live tier** (default) · OpenAI | **`ollama`** — e.g. Qwen3 | mock adapter |
 
@@ -124,8 +124,9 @@ pnpm deepinterview init      # choose "100% local models"
 
 Sets `LLM_PROVIDER=ollama`, `STT_PROVIDER=whisper`, `TTS_PROVIDER=kokoro` — every
 model runs on your machine, no LLM/STT/TTS keys, and nothing about your CV leaves
-your box. Verified end to end on Apple Silicon with `qwen3:8b`: a real,
-CV-grounded question plan in ~2 minutes.
+your box. Verified end to end on Apple Silicon with `qwen3:8b`: a CV-grounded
+question plan in ~2 minutes, then a **live voice interview with a real
+microphone** through to a scored report.
 
 Two honest caveats: **LiveKit is still the real-time transport** (use LiveKit
 Cloud, or `livekit-server --dev` for a fully offline stack), and local STT is

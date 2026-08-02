@@ -208,7 +208,7 @@ def build_stt(settings, language="en", mixed=False, vad=None):
     lang = _stt_lang(language, mixed)
     # Local path: no key, a base URL instead. Checked before the cloud branches
     # so an explicit local selection is never overridden.
-    if settings.stt_provider == "whisper":
+    if _provider(settings, "stt") in _LOCAL_STT:
         return _local_whisper_stt(settings, language, mixed, vad=vad)
     # CONFIRMED in live testing (2026-06-10): nova-3 + language=vi returns NO
     # transcripts on Deepgram's streaming API (English worked end-to-end in the
@@ -216,7 +216,7 @@ def build_stt(settings, language="en", mixed=False, vad=None):
     # languages therefore route to nova-2, which supports them in streaming;
     # nova-3 stays for en/multi where it has the lower WER.
     model = "nova-3" if lang in ("en", "multi") else "nova-2"
-    provider = settings.stt_provider
+    provider = _provider(settings, "stt")
     if provider == "deepgram" and settings.deepgram_api_key:
         return _deepgram_stt(lang, model, api_key=settings.deepgram_api_key)
     if provider == "soniox" and settings.soniox_api_key:
@@ -260,12 +260,33 @@ def _require_live_providers(settings) -> None:
         )
 
 
-# Selected local provider -> (base-URL setting, env var name to name in the error).
+# Accepted values per stage for the local path. These name a *contract* — "an
+# OpenAI-compatible server at a base URL" — not a vendor, so each stage takes
+# aliases: whatever you actually run, the adapter is identical. Whisper and
+# Qwen3-ASR both serve /v1/audio/transcriptions; Ollama, vLLM, LM Studio and
+# llama.cpp all serve /v1/chat/completions; Kokoro serves /v1/audio/speech.
+# `local` works everywhere as the neutral name.
+_LOCAL_LLM = frozenset({"ollama", "vllm", "llamacpp", "lmstudio", "local"})
+_LOCAL_STT = frozenset({"whisper", "faster-whisper", "qwen3-asr", "qwen-asr", "speaches", "local"})
+_LOCAL_TTS = frozenset({"kokoro", "local"})
+
+# Selected local provider -> (base-URL setting, env var named in the error).
 _LOCAL_PROVIDERS = {
-    "llm_provider": {"ollama": ("ollama_base_url", "OLLAMA_BASE_URL")},
-    "stt_provider": {"whisper": ("whisper_base_url", "WHISPER_BASE_URL")},
-    "tts_provider": {"kokoro": ("kokoro_base_url", "KOKORO_BASE_URL")},
+    "llm_provider": (_LOCAL_LLM, "ollama_base_url", "OLLAMA_BASE_URL"),
+    "stt_provider": (_LOCAL_STT, "whisper_base_url", "WHISPER_BASE_URL"),
+    "tts_provider": (_LOCAL_TTS, "kokoro_base_url", "KOKORO_BASE_URL"),
 }
+
+
+def _provider(settings, stage: str) -> str:
+    """Normalized provider value for a stage.
+
+    Case matters more than it looks: the builders compared the raw string while
+    preflight lowercased it, so ``STT_PROVIDER=Whisper`` passed the credential
+    check and then fell through to the *Deepgram* default — a cloud call on the
+    "no cloud keys" path. One normalizer, used by both.
+    """
+    return (getattr(settings, f"{stage}_provider", "") or "").strip().lower()
 
 
 def _unreachable_local_providers(settings) -> list[str]:
@@ -280,11 +301,11 @@ def _unreachable_local_providers(settings) -> list[str]:
     import httpx
 
     problems: list[str] = []
-    for field, providers in _LOCAL_PROVIDERS.items():
-        selected = (getattr(settings, field, "") or "").lower()
-        if selected not in providers:
+    for field, (accepted, url_field, env_name) in _LOCAL_PROVIDERS.items():
+        stage = field.removesuffix("_provider")
+        selected = _provider(settings, stage)
+        if selected not in accepted:
             continue
-        url_field, env_name = providers[selected]
         base = (getattr(settings, url_field, "") or "").rstrip("/")
         if not base:
             problems.append(f"{env_name} ({field.upper()}={selected})")
@@ -299,8 +320,8 @@ def _unreachable_local_providers(settings) -> list[str]:
 
 
 def build_llm(settings):
-    provider = settings.llm_provider
-    if provider == "ollama":
+    provider = _provider(settings, "llm")
+    if provider in _LOCAL_LLM:
         from livekit.plugins import openai
 
         # Local LLM on the turn path via Ollama's OpenAI-compatible endpoint.
@@ -390,14 +411,14 @@ def _local_kokoro_tts(settings, language="en"):
 
 def build_tts(settings, language="en"):
     lang = _TTS_LANG.get(language, "en")
-    provider = settings.tts_provider
+    provider = _provider(settings, "tts")
     needs_non_cartesia = language not in _CARTESIA_LANGS
 
     # Local path first: an explicit local selection must never be silently
     # overridden by the cloud language-routing chain below. Kokoro can't speak
     # every language we support, so an unsupported one falls through to the
     # cloud voices rather than reading the text in the wrong language.
-    if provider == "kokoro":
+    if provider in _LOCAL_TTS:
         if language in _KOKORO_VOICE or settings.kokoro_voice:
             return _local_kokoro_tts(settings, language)
         log.warning(
@@ -520,12 +541,8 @@ def build_conn_options(settings):
     three 30s retries would wedge the session for a minute and a half.
     """
     if not any(
-        (getattr(settings, field, "") or "").lower() in local_values
-        for field, local_values in (
-            ("llm_provider", {"ollama"}),
-            ("stt_provider", {"whisper"}),
-            ("tts_provider", {"kokoro"}),
-        )
+        _provider(settings, stage) in accepted
+        for stage, accepted in (("llm", _LOCAL_LLM), ("stt", _LOCAL_STT), ("tts", _LOCAL_TTS))
     ):
         return None
 

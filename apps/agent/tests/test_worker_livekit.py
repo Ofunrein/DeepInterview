@@ -766,3 +766,34 @@ def test_unreachable_local_providers_names_the_url_and_env_var() -> None:
 
     # All-cloud selection probes nothing.
     assert worker._unreachable_local_providers(_local_settings(llm_provider="gemini")) == []
+
+
+def test_local_provider_values_are_case_insensitive_and_aliased() -> None:
+    """The provider value names a CONTRACT, not a vendor — and case must not matter.
+
+    Two things this pins. First, the builders once compared the raw string while
+    preflight lowercased it, so ``STT_PROVIDER=Whisper`` passed the credential
+    check and then fell through to the DEEPGRAM default — a cloud call on the
+    "no cloud keys" path. Second, any server speaking the OpenAI shape works
+    (Whisper, Qwen3-ASR, vLLM, LM Studio), so each stage accepts aliases and the
+    neutral value ``local``.
+    """
+    from livekit.plugins import openai as lk_openai
+
+    for value in ("whisper", "Whisper", "QWEN3-ASR", "qwen-asr", "local", " speaches "):
+        stt = worker.build_stt(
+            _local_settings(stt_provider=value), "en", vad=SimpleNamespace()
+        )
+        assert isinstance(stt.wrapped_stt, lk_openai.STT), f"{value!r} must stay local"
+        assert str(stt.wrapped_stt._client.base_url).startswith("http://localhost:8000")
+
+    for value in ("ollama", "Ollama", "vllm", "lmstudio", "local"):
+        llm = worker.build_llm(_local_settings(llm_provider=value))
+        assert str(llm._client.base_url).startswith("http://localhost:11434"), value
+
+    for value in ("kokoro", "Kokoro", "local"):
+        tts = worker.build_tts(_local_settings(tts_provider=value), "en")
+        assert tts._wrapped_tts._opts.voice == "af_heart", value
+
+    # And an unknown value must NOT be treated as local.
+    assert worker._unreachable_local_providers(_local_settings(stt_provider="deepgram")) == []

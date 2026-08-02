@@ -26,9 +26,16 @@ Tagged releases: [GitHub Releases](https://github.com/ngoanpv/DeepInterview/rele
   32s on a 3.6s clip; `base` needs ~220 MB, runs at ~0.09x realtime, and was just
   as accurate on interview speech. Sizes and per-model timings under concurrent
   LLM load are in [docs/LOCAL_MODELS.md](docs/LOCAL_MODELS.md).
+- **A real microphone interview runs end to end on local models.** Verified with
+  a live LiveKit session: the agent spoke in Kokoro's voice, the local Whisper
+  server transcribed real speech, and the report rendered `complete` — with no
+  recognition failures and no stage falling back to a cloud provider. One honest
+  note from that run: `qwen3:8b` did not reliably call the `save_answer` tool, so
+  the shutdown-time transcript recovery supplied the answer. That safety net is
+  pre-existing and worked, but small local models lean on it more than the cloud
+  models do.
 - **Not verified, so not claimed:** turn latency on local models is not
-  benchmarked, a full microphone session in a LiveKit room has not yet completed
-  end to end, and the local path is maintainer-tested rather than CI-tested (CI
+  benchmarked, and the local path is maintainer-tested rather than CI-tested (CI
   has no models). Tuning local turn latency is tracked as follow-up work. Kokoro has no Vietnamese voice — `vi` sessions fall back to
   a cloud voice rather than mispronouncing it. Local STT is batch, so live
   captions arrive per utterance instead of word by word.

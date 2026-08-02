@@ -256,7 +256,7 @@ def get_llm(settings: Settings) -> LLMAdapter:
             return OpenAILLM(settings.openai_api_key, settings.openai_model, timeout)
         log.warning("llm_provider=openai but openai_api_key is missing; using MockLLM.")
         return MockLLM()
-    if provider == "ollama":
+    if provider in {"ollama", "vllm", "llamacpp", "lmstudio", "local"}:
         # Local: a base URL takes the place of an API key. Everything else in
         # the factory contract is unchanged — missing config still degrades to
         # the mock rather than failing the pipeline.
@@ -267,7 +267,7 @@ def get_llm(settings: Settings) -> LLMAdapter:
                 timeout,
                 base_url=settings.ollama_base_url,
             )
-        log.warning("llm_provider=ollama but ollama_base_url is missing; using MockLLM.")
+        log.warning("llm_provider=%s but ollama_base_url is missing; using MockLLM.", provider)
         return MockLLM()
     log.warning("Unknown llm_provider=%r; using MockLLM.", provider)
     return MockLLM()
