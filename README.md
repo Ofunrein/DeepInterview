@@ -96,7 +96,7 @@ Practicing in your head (or in a text chat) isn't how interviews work. DeepInter
 - **Prepared like a real interviewer** — before the call it reads your CV + the JD, researches the company, and precomputes a personalized question plan with rubrics; the live loop stays fast because the thinking already happened.
 - **Feedback you can act on** — per-competency rubric scores, model answers, and a study coach that targets exactly the gaps the interview exposed (a closed prep ⇄ interview ⇄ feedback loop).
 - **Multilingual by design** — UI in EN+VI, voice interviews in 7 languages including Vietnamese; STT/TTS route by language automatically, and each language is a pluggable pack.
-- **Yours end to end** — Apache 2.0, fully self-hostable, **bring-your-own keys** for every provider (or run 100% offline on mock adapters), and **no sign-in required**: no account, no login, no data leaving your box unless you choose a provider.
+- **Yours end to end** — Apache 2.0, fully self-hostable, **bring-your-own keys** for every provider — or **run every model locally** (Ollama + Whisper + Kokoro, [docs/LOCAL_MODELS.md](docs/LOCAL_MODELS.md)) — and **no sign-in required**: no account, no login, no data leaving your box unless you choose a provider.
 
 ## Features
 
@@ -110,29 +110,46 @@ Practicing in your head (or in a text chat) isn't how interviews work. DeepInter
 
 **Every stage is swappable — bring your own vendor.** The live voice loop is **cascaded STT → LLM → TTS** over LiveKit; you pick each vendor with a single env var (`STT_PROVIDER` / `TTS_PROVIDER` / `LLM_PROVIDER`) plus its key. No code changes, no vendor lock-in — providers sit behind a clean adapter interface, and adding a new one is a small PR (see [CONTRIBUTING.md](CONTRIBUTING.md)). With no keys set, every stage falls back to an offline **mock adapter** so the full loop runs in CI and on day-one clones.
 
-| Stage | Choose with | Vendors (pick one) | No key set |
-|---|---|---|---|
-| **STT** | `STT_PROVIDER` | **Deepgram nova-3** (default) · Soniox | mock adapter (faster-whisper planned) |
-| **TTS** | `TTS_PROVIDER` | **Cartesia sonic** (default) · ElevenLabs Flash v2.5 · Gemini TTS | mock adapter (XTTS planned) |
-| **LLM** | `LLM_PROVIDER` | **Gemini live tier** (default) · OpenAI | mock adapter (Qwen3 planned) |
+| Stage | Choose with | Cloud vendors (pick one) | Fully local | No key set |
+|---|---|---|---|---|
+| **STT** | `STT_PROVIDER` | **Deepgram nova-3** (default) · Soniox | **`whisper`** — any OpenAI-compatible Whisper server | mock adapter |
+| **TTS** | `TTS_PROVIDER` | **Cartesia sonic** (default) · ElevenLabs Flash v2.5 · Gemini TTS | **`kokoro`** — kokoro-fastapi | mock adapter |
+| **LLM** | `LLM_PROVIDER` | **Gemini live tier** (default) · OpenAI | **`ollama`** — e.g. Qwen3 | mock adapter |
+
+### Run it 100% local
+
+```bash
+pnpm deepinterview init      # choose "100% local models"
+```
+
+Sets `LLM_PROVIDER=ollama`, `STT_PROVIDER=whisper`, `TTS_PROVIDER=kokoro` — every
+model runs on your machine, no LLM/STT/TTS keys, and nothing about your CV leaves
+your box. Verified end to end on Apple Silicon with `qwen3:8b`: a real,
+CV-grounded question plan in ~2 minutes.
+
+Two honest caveats: **LiveKit is still the real-time transport** (use LiveKit
+Cloud, or `livekit-server --dev` for a fully offline stack), and local STT is
+batch, so captions appear per utterance rather than word by word. Turn latency
+on local models is not benchmarked, and Kokoro has no Vietnamese voice.
+Full setup, hardware notes and troubleshooting: **[docs/LOCAL_MODELS.md](docs/LOCAL_MODELS.md)**.
 
 > **Language routing is automatic — not something you configure.** If your chosen TTS doesn't cover the session language (e.g., Vietnamese on Cartesia), the agent reroutes that session to ElevenLabs or Gemini TTS when a key is present. Cartesia covers en, es, zh, fr, de, ja, pt, hi, it, ko, nl, pl, ru, sv, tr; Deepgram nova-3 covers English + many languages (Vietnamese validation in progress).
 
 ## News
 
+> - **[2026.08]** **Run the whole thing on your own machine.** The LLM, speech-to-text and text-to-speech stages now point at local OpenAI-compatible servers — **Ollama**, a local **Whisper** server and **Kokoro** — so an interview needs no model keys at all. Verified end to end on Apple Silicon; pair it with `livekit-server --dev` for a fully offline stack. English voices for now, and turn latency isn't benchmarked. See [docs/LOCAL_MODELS.md](docs/LOCAL_MODELS.md).
 > - **[2026.07]** **Now on Gemini 3.6 Flash + LiveKit Agents 1.6.** Prep and scoring run on **Gemini 3.6 Flash**; the live voice stack moved to livekit-agents 1.6 (Gemini 3-ready function calling on the turn path), and live captions now read as one paragraph per speaker instead of per-fragment lines.
 > - **[2026.07]** **The open-source build is fully uncapped — billing removed.** Self-host with your own keys: no plan gates, no interview caps, no billing tables. Payments live only in the hosted edition; the OSS schema got leaner.
 > - **[2026.07]** **Hardening release.** Opt-in shared-secret auth for the agent API and knowledge sidecar, locked-down Supabase row policies, and periodic transcript checkpointing so a killed process loses seconds of your interview, not all of it.
 > - **[2026.07]** **The study coach now grounds answers in *your* session.** Prep ingests your CV, the JD, and company research into the knowledge sidecar keyed by session — coach answers cite your own materials, not generic tips.
 > - **[2026.06]** **Live voice interviews run on real providers.** The full loop — personalized prep (real Gemini CV/JD analysis + company research) → real-time voice interview on LiveKit (Deepgram STT · Gemini · Cartesia/ElevenLabs TTS) → scored report — now runs end to end, with semantic end-of-turn detection and noise-robust, word-gated barge-in.
-> - **[2026.06]** **`docker compose up` verified.** All images build; the base stack (web + agent API + knowledge sidecar) comes up healthy with **zero keys** on mock adapters; `--profile live` adds the voice worker.
-> - **[next]** The hero demo GIF, hosted live demo, and more language packs.
+> - **[next]** A hosted live demo, and more language packs.
 
 _(Honest by policy — no shipped-feature claims until they're true. Older entries roll into [CHANGELOG.md](CHANGELOG.md).)_
 
 ## Releases
 
-Current release: **[v0.2.0](https://github.com/ngoanpv/DeepInterview/releases/tag/v0.2.0)** (2026-07-25) — the full prep → live voice interview → scoring → coach loop verified on real providers, uncapped billing-free OSS build, hardened API surface, and the community playbook library wired into the question planner. See [Releases](https://github.com/ngoanpv/DeepInterview/releases) for notes; citation metadata lives in [`CITATION.cff`](CITATION.cff).
+Current release: **[v0.3.0](https://github.com/ngoanpv/DeepInterview/releases/tag/v0.3.0)** (2026-08-02) — a fully local model path (Ollama + Whisper + Kokoro) so an interview needs no model keys at all, on top of the v0.2.0 loop: prep → live voice interview → scoring → coach verified on real providers, uncapped billing-free OSS build, hardened API surface, and the community playbook library wired into the question planner. See [Releases](https://github.com/ngoanpv/DeepInterview/releases) for notes; citation metadata lives in [`CITATION.cff`](CITATION.cff).
 
 ## Architecture
 
@@ -182,6 +199,18 @@ Full request-flow diagrams and the multi-agent design live in [`docs/ARCHITECTUR
 - **[The playbook library](skills/README.md)** — browsable interview question-bank packs that directly shape the AI's questions; contributions welcome ([#38](https://github.com/ngoanpv/DeepInterview/issues/38)).
 
 Built in the open, with [Claude Code](https://claude.com/claude-code) as a heavily-used co-author — the AI interviewer declined to interview it. We respond to issues — ghosting contributors is the #1 cause of OSS death, and we don't intend to.
+
+**Standing on other people's shoulders.** The local path is built on
+[LiveKit Agents](https://github.com/livekit/agents),
+[Ollama](https://github.com/ollama/ollama),
+[Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) and
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper). If you want a pure
+local *voice pipeline* rather than a full interview platform, go look at
+[**@huggingface**'s `speech-to-speech`](https://github.com/huggingface/speech-to-speech)
+(Apache-2.0) — the same cascaded VAD → STT → LLM → TTS philosophy we use, with
+MLX on Apple Silicon and an OpenAI Realtime-compatible API. It's the closest
+sibling to this project's local mode and the best place to start if you're
+assembling your own.
 
 ## Contributing
 

@@ -49,6 +49,48 @@ class Settings(BaseSettings):
     # and covers 32 languages incl. vi. Override via ELEVENLABS_MODEL.
     elevenlabs_model: str = "eleven_flash_v2_5"
 
+    # --- local (self-hosted) model servers ------------------------------------
+    # The "runs 100% local, no cloud model keys" path. All three speak the
+    # OpenAI HTTP shape, so they reuse the already-installed openai SDK +
+    # livekit-plugins-openai with a `base_url` override — no extra dependency.
+    #   ollama  -> LLM   (prep, scoring, and the live turn path)
+    #   whisper -> STT   (any OpenAI-compatible /v1/audio/transcriptions server)
+    #   kokoro  -> TTS   (kokoro-fastapi's /v1/audio/speech)
+    # Select them with LLM_PROVIDER=ollama / STT_PROVIDER=whisper /
+    # TTS_PROVIDER=kokoro; each needs its base URL, never an API key.
+    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_model: str = "qwen3:8b"
+    whisper_base_url: str = "http://localhost:8000/v1"
+    whisper_model: str = "Systran/faster-whisper-small"
+    kokoro_base_url: str = "http://localhost:8880/v1"
+    # MUST stay in the openai plugin's AUDIO_STREAM_MODELS = {"tts-1","tts-1-hd"}.
+    # Any other id routes synthesis down its SSE branch, which parses "data:"
+    # lines: raw audio matches nothing, the stream drains, and the agent emits
+    # NO AUDIO AND NO EXCEPTION. kokoro-fastapi ignores the model name, so
+    # "tts-1" is purely the switch that selects the audio-bytes path.
+    kokoro_model: str = "tts-1"
+    # Blank = pick the voice from the session language (worker._KOKORO_VOICE),
+    # since Kokoro encodes the language in the voice-id prefix. Set it to pin one.
+    kokoro_voice: str = ""
+    # The plugin hard-codes a 24 kHz decode (openai/tts.py SAMPLE_RATE), which
+    # is also Kokoro-82M's native rate. Raw PCM avoids a decode step; a
+    # mismatched rate here produces chipmunk/slow-motion speech, not an error.
+    kokoro_response_format: str = "pcm"
+    # Non-empty placeholder credential for local servers, which need no auth.
+    # It must not be "": the openai plugin raises ValueError on an
+    # explicitly-passed empty key (stt.py/tts.py "OpenAI API key is required").
+    local_api_key: str = "local"
+    # One-shot reachability probe before a live session starts. A local server
+    # that isn't running is the local path's equivalent of a missing API key,
+    # and without this the candidate joins and *then* the first turn errors.
+    local_probe_timeout_sec: float = 2.0
+    # Per-request ceiling on the LIVE path when a local provider is selected.
+    # The SDK's APIConnectOptions default is 10s, which a cloud model always
+    # beats but a local one — cold, or generating on a shared GPU — does not:
+    # every turn would abort before the first token. Applied only when a local
+    # provider is in play, so the cloud path keeps the SDK default.
+    local_provider_timeout_sec: float = 30.0
+
     # --- provider credentials (all optional) ---------------------------------
     gemini_api_key: str | None = None
     openai_api_key: str | None = None

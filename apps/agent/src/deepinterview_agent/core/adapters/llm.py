@@ -57,6 +57,15 @@ def _loads_json(text: str) -> Any:
     import re
 
     t = (text or "").strip()
+    # Strip reasoning blocks BEFORE looking for JSON. Local reasoning models
+    # (Qwen3 via Ollama) routinely return "<think>…</think>" inline in content,
+    # and the tolerant scan below takes the FIRST '{' it sees — so a brace
+    # anywhere in the model's scratchpad would be decoded instead of the answer.
+    # Cloud models don't emit these tags, so this is a no-op for them.
+    t = re.sub(r"<(think|thinking)>.*?</\1>", "", t, flags=re.DOTALL | re.IGNORECASE).strip()
+    # An unterminated block means the reply was cut off mid-thought; everything
+    # after the opening tag is scratchpad, never the answer.
+    t = re.sub(r"<(think|thinking)>.*\Z", "", t, flags=re.DOTALL | re.IGNORECASE).strip()
     # Strip a wrapping ```json ... ``` / ``` ... ``` markdown fence, if present.
     if t.startswith("```"):
         t = re.sub(r"^```[^\n]*\n?", "", t)
@@ -134,19 +143,26 @@ class GeminiLLM:
 
 
 class OpenAILLM:
-    """OpenAI via the ``openai`` SDK (lazy import)."""
+    """OpenAI — and any OpenAI-compatible server — via the ``openai`` SDK.
+
+    ``base_url`` is what makes the local path possible: pointed at Ollama's
+    ``/v1`` it drives the whole prep/post pipeline with no cloud key. See
+    :class:`OllamaLLM`.
+    """
 
     def __init__(
         self,
         api_key: str,
         model: str,
         timeout_sec: float = _DEFAULT_TIMEOUT_SEC,
+        base_url: str | None = None,
     ) -> None:
         # No default model — see GeminiLLM.__init__; Settings.openai_model is
         # the single source of truth.
         self._api_key = api_key
         self._model = model
         self._timeout = timeout_sec
+        self._base_url = base_url
 
     def _client(self) -> Any:
         try:
@@ -155,7 +171,7 @@ class OpenAILLM:
             raise RuntimeError(
                 "openai is not installed; install the 'openai' extra."
             ) from exc
-        return AsyncOpenAI(api_key=self._api_key)
+        return AsyncOpenAI(api_key=self._api_key, base_url=self._base_url)
 
     async def complete_text(self, *, system: str, user: str) -> str:
         client = self._client()
@@ -192,6 +208,38 @@ class OpenAILLM:
         return schema.model_validate(_loads_json(resp.choices[0].message.content or "{}"))
 
 
+class OllamaLLM(OpenAILLM):
+    """A local Ollama server through its OpenAI-compatible ``/v1`` endpoint.
+
+    Ollama needs no credential, so a non-empty placeholder key is passed (the
+    SDK requires *something*). Behaviourally this differs from the cloud path in
+    one way that matters: **it retries once when the response doesn't parse.**
+
+    Why only here. Small local models are markedly worse at emitting strict JSON
+    than Gemini/GPT, and this pipeline's largest schema (``QuestionPlan``) is
+    also its keystone — when it fails, ``prep.nodes.question_planner`` silently
+    swaps in the generic mock plan and the candidate sits through an interview
+    whose questions are titled "mock". That exact failure has shipped before.
+    One cheap retry with a blunter instruction converts most near-misses
+    (a stray preamble, a truncated trailing brace) into a usable plan; the cloud
+    adapters stay single-shot so their latency and cost are unchanged.
+    """
+
+    _RETRY_NUDGE = (
+        "Your previous reply could not be parsed as JSON. Reply with the JSON "
+        "value ONLY — no explanation, no markdown fence, no <think> block."
+    )
+
+    async def complete_json(self, *, system: str, user: str, schema: type) -> Any:
+        try:
+            return await super().complete_json(system=system, user=user, schema=schema)
+        except Exception as exc:  # noqa: BLE001 - any parse/validation miss earns one retry
+            log.warning("OllamaLLM: unparseable JSON (%s); retrying once.", exc)
+            return await super().complete_json(
+                system=f"{system}\n\n{self._RETRY_NUDGE}", user=user, schema=schema
+            )
+
+
 def get_llm(settings: Settings) -> LLMAdapter:
     """Choose an LLM adapter from settings, falling back to the mock."""
     provider = (settings.llm_provider or "mock").lower()
@@ -207,6 +255,19 @@ def get_llm(settings: Settings) -> LLMAdapter:
         if settings.openai_api_key:
             return OpenAILLM(settings.openai_api_key, settings.openai_model, timeout)
         log.warning("llm_provider=openai but openai_api_key is missing; using MockLLM.")
+        return MockLLM()
+    if provider == "ollama":
+        # Local: a base URL takes the place of an API key. Everything else in
+        # the factory contract is unchanged — missing config still degrades to
+        # the mock rather than failing the pipeline.
+        if settings.ollama_base_url:
+            return OllamaLLM(
+                settings.local_api_key,
+                settings.ollama_model,
+                timeout,
+                base_url=settings.ollama_base_url,
+            )
+        log.warning("llm_provider=ollama but ollama_base_url is missing; using MockLLM.")
         return MockLLM()
     log.warning("Unknown llm_provider=%r; using MockLLM.", provider)
     return MockLLM()

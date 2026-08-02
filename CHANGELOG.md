@@ -4,6 +4,33 @@ All notable changes, newest first. The README's [News](README.md#news) section
 carries the latest handful of entries; everything lands here permanently.
 Tagged releases: [GitHub Releases](https://github.com/ngoanpv/DeepInterview/releases).
 
+## v0.3.0 — 2026-08-02
+
+- **A fully local model path — no LLM, STT or TTS keys.** `LLM_PROVIDER=ollama`,
+  `STT_PROVIDER=whisper` and `TTS_PROVIDER=kokoro` point each stage at an
+  OpenAI-compatible server on your own machine. No new dependency was added:
+  the existing `livekit-plugins-openai` is reused with a `base_url` override, so
+  any compatible server works (Ollama, vLLM, LM Studio, llama.cpp, Speaches,
+  kokoro-fastapi). `deepinterview init` gained a **"100% local models"** mode and
+  `docker compose --profile local` brings up the model servers.
+  Closes #55, #56, #57.
+- **Verified** on an Apple M5 Pro (24 GB): prep produced a real, CV-grounded
+  six-question plan in 121s on `qwen3:8b` with no degraded stages, and a Kokoro →
+  Whisper round trip through the real worker builders returned the spoken
+  sentence verbatim (3.25s of 24 kHz PCM). Provider selection, fallback and
+  voice/language routing are covered by offline unit tests.
+- **Not verified, so not claimed:** turn latency on local models is not
+  benchmarked, a full microphone session in a LiveKit room has not been run, and
+  the local path is maintainer-tested rather than CI-tested (CI has no models). Kokoro has no Vietnamese voice — `vi` sessions fall back to
+  a cloud voice rather than mispronouncing it. Local STT is batch, so live
+  captions arrive per utterance instead of word by word.
+- **LiveKit remains the real-time transport** even on the local path. Use LiveKit
+  Cloud, or `livekit-server --dev` for a fully offline stack. See
+  [docs/LOCAL_MODELS.md](docs/LOCAL_MODELS.md).
+- Local models are slower than cloud ones: `LLM_CALL_TIMEOUT_SEC` and
+  `SCORE_STAGE_TIMEOUT_SEC` are the knobs, and selecting a local provider
+  automatically widens the live per-request ceiling from the SDK's 10s default.
+
 ## v0.2.0 — 2026-07-25
 
 - **Gemini 3.6 Flash + LiveKit Agents 1.6.** Prep and scoring run on Gemini 3.6

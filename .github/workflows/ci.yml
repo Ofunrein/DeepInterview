@@ -64,7 +64,12 @@ jobs:
         run: uv --directory services/lightrag run pytest
 
       - name: Validate docker compose
-        run: docker compose config -q
+        # Profiled services are skipped unless their profile is named, so the
+        # `local` (model servers) and `live` (voice worker) blocks need their own
+        # pass or a typo in them would ship unvalidated.
+        run: |
+          docker compose config -q
+          docker compose --profile local --profile live config -q
 
   # Actually BUILD the images so Dockerfile breakage (copy paths, --frozen
   # lockfile drift, the worker model-bake step) surfaces in CI, not at deploy.

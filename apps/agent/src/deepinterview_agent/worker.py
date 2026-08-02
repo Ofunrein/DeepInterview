@@ -168,8 +168,48 @@ def _deepgram_stt(lang: str, model: str, api_key=None):
     return deepgram.STT(**kwargs)
 
 
-def build_stt(settings, language="en", mixed=False):
+def _local_whisper_stt(settings, language: str, mixed: bool, vad=None):
+    """Local Whisper (any OpenAI-compatible ``/v1/audio/transcriptions`` server).
+
+    The openai plugin's STT is a BATCH client: its capabilities are
+    ``streaming=use_realtime``, and ``use_realtime=True`` speaks OpenAI's
+    proprietary Realtime WebSocket, which local Whisper servers don't implement.
+    So it is wrapped in the SDK's ``StreamAdapter``, which uses the (already
+    prewarmed) Silero VAD to cut the mic stream into utterances and calls the
+    batch endpoint per utterance, re-exposing ``streaming=True``.
+
+    The trade-off is real and documented: **no interim results** on this path —
+    captions land per utterance instead of word by word. The semantic
+    end-of-turn model reads final transcripts, so turn-taking still works.
+
+    Code-switching does NOT go through ``_stt_lang`` here. That helper returns
+    the string ``"multi"``, which is a *Deepgram model name*; Whisper rejects it
+    and every transcript comes back empty — the same silent-no-transcripts class
+    of failure as the nova-3+vi bug above. Whisper's own mechanism is
+    ``detect_language``, which blanks the language and lets it auto-detect.
+    """
+    from livekit.agents import stt as agents_stt
+    from livekit.plugins import openai
+
+    return agents_stt.StreamAdapter(
+        stt=openai.STT(
+            model=settings.whisper_model,
+            language=_STT_LANG.get(language, "en"),
+            detect_language=mixed,
+            base_url=settings.whisper_base_url,
+            # Local servers want no auth, but the plugin rejects an empty key.
+            api_key=settings.local_api_key,
+        ),
+        vad=vad or build_vad(),
+    )
+
+
+def build_stt(settings, language="en", mixed=False, vad=None):
     lang = _stt_lang(language, mixed)
+    # Local path: no key, a base URL instead. Checked before the cloud branches
+    # so an explicit local selection is never overridden.
+    if settings.stt_provider == "whisper":
+        return _local_whisper_stt(settings, language, mixed, vad=vad)
     # CONFIRMED in live testing (2026-06-10): nova-3 + language=vi returns NO
     # transcripts on Deepgram's streaming API (English worked end-to-end in the
     # same build) — the exact failure this comment predicted. Non-English
@@ -212,6 +252,7 @@ def _require_live_providers(settings) -> None:
         missing.append("CARTESIA_API_KEY (TTS_PROVIDER=cartesia)")
     elif tts == "elevenlabs" and not settings.elevenlabs_api_key:
         missing.append("ELEVENLABS_API_KEY (TTS_PROVIDER=elevenlabs)")
+    missing.extend(_unreachable_local_providers(settings))
     if missing:
         raise RuntimeError(
             "Live interview cannot start — missing provider credentials: "
@@ -219,8 +260,55 @@ def _require_live_providers(settings) -> None:
         )
 
 
+# Selected local provider -> (base-URL setting, env var name to name in the error).
+_LOCAL_PROVIDERS = {
+    "llm_provider": {"ollama": ("ollama_base_url", "OLLAMA_BASE_URL")},
+    "stt_provider": {"whisper": ("whisper_base_url", "WHISPER_BASE_URL")},
+    "tts_provider": {"kokoro": ("kokoro_base_url", "KOKORO_BASE_URL")},
+}
+
+
+def _unreachable_local_providers(settings) -> list[str]:
+    """Local providers have no credential — an unreachable server is the failure.
+
+    A missing API key is caught above; the local path's equivalent is "the model
+    server isn't running", which otherwise surfaces only once the candidate has
+    joined and the first turn errors. One bounded GET per selected local
+    provider, before the greeting, turns that into a startup error naming the
+    URL and the env var. Never on the turn path.
+    """
+    import httpx
+
+    problems: list[str] = []
+    for field, providers in _LOCAL_PROVIDERS.items():
+        selected = (getattr(settings, field, "") or "").lower()
+        if selected not in providers:
+            continue
+        url_field, env_name = providers[selected]
+        base = (getattr(settings, url_field, "") or "").rstrip("/")
+        if not base:
+            problems.append(f"{env_name} ({field.upper()}={selected})")
+            continue
+        try:
+            httpx.get(f"{base}/models", timeout=settings.local_probe_timeout_sec)
+        except Exception as exc:  # noqa: BLE001 - any failure to reach it is fatal
+            # A 4xx/5xx still proves something is listening; only transport
+            # failures (refused/DNS/timeout) mean "server isn't there".
+            problems.append(f"{env_name}={base} unreachable ({type(exc).__name__}: {exc})")
+    return problems
+
+
 def build_llm(settings):
     provider = settings.llm_provider
+    if provider == "ollama":
+        from livekit.plugins import openai
+
+        # Local LLM on the turn path via Ollama's OpenAI-compatible endpoint.
+        return openai.LLM(
+            model=settings.ollama_model,
+            base_url=settings.ollama_base_url,
+            api_key=settings.local_api_key,
+        )
     if provider == "openai" and settings.openai_api_key:
         from livekit.plugins import openai
 
@@ -242,10 +330,81 @@ def build_llm(settings):
 _CARTESIA_LANGS = {"en", "es", "fr", "de", "ja", "zh", "pt", "hi", "it", "ko", "nl", "pl", "ru", "sv", "tr"}
 
 
+# Kokoro-82M encodes the language in the voice id's prefix, so picking a voice
+# IS picking a language: leaving the English default on a Japanese session would
+# read Japanese text with an American accent. Notably absent: Vietnamese —
+# Kokoro has no vi voice, so vi sessions fall through to the cloud chain.
+_KOKORO_VOICE = {
+    "en": "af_heart",
+    "ja": "jf_alpha",
+    "zh": "zf_xiaobei",
+    "es": "ef_dora",
+    "fr": "ff_siwis",
+    "hi": "hf_alpha",
+    "it": "if_sara",
+    "pt": "pf_dora",
+}
+
+
+def _local_kokoro_tts(settings, language="en"):
+    """Local Kokoro (kokoro-fastapi's OpenAI-compatible ``/v1/audio/speech``).
+
+    Wrapped in the SDK's TTS ``StreamAdapter`` because the openai plugin's TTS
+    declares ``streaming=False``: unwrapped, the agent would synthesize a whole
+    answer before speaking a word. The adapter's sentence tokenizer feeds it one
+    sentence at a time as the LLM streams, so speech starts after the first
+    sentence — the same shape as the streaming cloud voices.
+    """
+    from livekit.agents import tts as agents_tts
+    from livekit.plugins import openai
+    from livekit.plugins.openai.tts import AUDIO_STREAM_MODELS
+
+    # Guard the silent-failure mode: a model id outside AUDIO_STREAM_MODELS
+    # sends synthesis down the plugin's SSE branch, which yields no audio and
+    # raises nothing. Never let that happen quietly.
+    model = settings.kokoro_model
+    if model not in AUDIO_STREAM_MODELS:
+        log.warning(
+            "build_tts: KOKORO_MODEL=%r is outside %s, which would produce SILENT "
+            "audio with no error; using 'tts-1' instead (kokoro-fastapi ignores "
+            "the model name).",
+            model,
+            sorted(AUDIO_STREAM_MODELS),
+        )
+        model = "tts-1"
+
+    # An explicit KOKORO_VOICE always wins; otherwise the voice is derived from
+    # the session language so the accent matches the words.
+    voice = settings.kokoro_voice or _KOKORO_VOICE.get(language, "af_heart")
+
+    return agents_tts.StreamAdapter(
+        tts=openai.TTS(
+            model=model,
+            voice=voice,
+            base_url=settings.kokoro_base_url,
+            api_key=settings.local_api_key,
+            response_format=settings.kokoro_response_format,
+        )
+    )
+
+
 def build_tts(settings, language="en"):
     lang = _TTS_LANG.get(language, "en")
     provider = settings.tts_provider
     needs_non_cartesia = language not in _CARTESIA_LANGS
+
+    # Local path first: an explicit local selection must never be silently
+    # overridden by the cloud language-routing chain below. Kokoro can't speak
+    # every language we support, so an unsupported one falls through to the
+    # cloud voices rather than reading the text in the wrong language.
+    if provider == "kokoro":
+        if language in _KOKORO_VOICE or settings.kokoro_voice:
+            return _local_kokoro_tts(settings, language)
+        log.warning(
+            "build_tts: Kokoro has no voice for %r; falling back to a cloud voice. "
+            "Set KOKORO_VOICE to force a specific one.",
+            language,
+        )
 
     # ElevenLabs Flash v2.5 (~75ms, 32 languages incl. vi) is the low-latency
     # multilingual voice: it wins when explicitly selected, and it's the preferred
@@ -348,6 +507,41 @@ def build_room_options(settings):
         return None
 
 
+def build_conn_options(settings):
+    """Widen the SDK's 10s per-request ceiling when a local model is selected.
+
+    ``APIConnectOptions.timeout`` defaults to 10s — comfortable for a cloud
+    model, but a local one that is cold, swapping, or sharing a GPU regularly
+    needs longer just to emit its first token. At the default, every turn aborts
+    before the model answers and the interview is silently dead.
+
+    Returns ``None`` for the all-cloud path so its behaviour is bit-for-bit
+    unchanged. ``max_retry=1`` because a local endpoint that is down stays down:
+    three 30s retries would wedge the session for a minute and a half.
+    """
+    if not any(
+        (getattr(settings, field, "") or "").lower() in local_values
+        for field, local_values in (
+            ("llm_provider", {"ollama"}),
+            ("stt_provider", {"whisper"}),
+            ("tts_provider", {"kokoro"}),
+        )
+    ):
+        return None
+
+    from livekit.agents import APIConnectOptions
+    from livekit.agents.voice.agent_session import SessionConnectOptions
+
+    opts = APIConnectOptions(timeout=settings.local_provider_timeout_sec, max_retry=1)
+    log.info(
+        "build_conn_options: local provider selected; per-request timeout %.0fs",
+        settings.local_provider_timeout_sec,
+    )
+    return SessionConnectOptions(
+        stt_conn_options=opts, llm_conn_options=opts, tts_conn_options=opts
+    )
+
+
 def build_vad(proc: JobProcess | None = None):
     """Return the Silero VAD, preferring the prewarmed per-process instance."""
     if proc is not None and "vad" in proc.userdata:
@@ -444,12 +638,19 @@ async def entrypoint(ctx: JobContext) -> None:
     # Route STT/TTS by the interview's primary language so a non-English session
     # (e.g. Vietnamese) is both understood and spoken — not just prompted for.
     lang_mode = interview_ctx.plan.language_mode
+    # Built once and shared: the local Whisper STT needs a VAD to segment the
+    # mic stream, and loading Silero twice would waste the prewarm.
+    vad = build_vad(ctx.proc)
+    conn_options = build_conn_options(settings)
     session: AgentSession[InterviewUserdata] = AgentSession(
         userdata=userdata,
-        stt=build_stt(settings, lang_mode.primary, lang_mode.mixed),
+        stt=build_stt(settings, lang_mode.primary, lang_mode.mixed, vad=vad),
         llm=build_llm(settings),
         tts=build_tts(settings, lang_mode.primary),
-        vad=build_vad(ctx.proc),
+        vad=vad,
+        # Only set for local providers; None keeps the SDK defaults (see
+        # build_conn_options), so the cloud path is untouched.
+        **({"conn_options": conn_options} if conn_options else {}),
         # Lean live loop: preemptive generation is on by default in 1.5.x;
         # turn_handling adds the noisy-environment defenses (semantic
         # end-of-turn + word-gated interruptions — see build_turn_handling).
