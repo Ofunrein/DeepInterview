@@ -38,7 +38,20 @@ jobs:
       - name: Install JS deps
         run: pnpm install
 
+      - name: Rewrite Apple PyPI lock URLs for public CI
+        # Lockfile is generated against pypi.apple.com. Same rewrite the
+        # Dockerfile already does so GitHub-hosted runners can fetch wheels.
+        # Do not commit the rewritten lock.
+        run: |
+          sed -i.bak \
+            -e 's|https://pypi.apple.com/simple|https://pypi.org/simple|g' \
+            -e 's|https://pypi.apple.com/packages/packages/|https://files.pythonhosted.org/packages/|g' \
+            apps/agent/uv.lock
+          rm -f apps/agent/uv.lock.bak
       - name: Sync Python deps (agent)
+        env:
+          UV_DEFAULT_INDEX: https://pypi.org/simple
+          UV_INDEX_URL: https://pypi.org/simple
         run: cd apps/agent && uv sync
 
       - name: Generate schema
