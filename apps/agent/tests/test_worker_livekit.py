@@ -797,3 +797,49 @@ def test_local_provider_values_are_case_insensitive_and_aliased() -> None:
 
     # And an unknown value must NOT be treated as local.
     assert worker._unreachable_local_providers(_local_settings(stt_provider="deepgram")) == []
+
+
+def test_build_tts_deepgram_picks_the_voice_from_the_language() -> None:
+    """Aura-2 encodes the language in the model id, so the voice IS the language.
+
+    Leaving the English default on a Japanese session would read Japanese text
+    with an American voice — the same failure the Kokoro voice map guards.
+    """
+    pytest.importorskip("livekit.plugins.deepgram")
+    settings = _local_settings(tts_provider="deepgram", deepgram_api_key="k" * 40)
+    for language, expected in (
+        ("en", "aura-2-thalia-en"),
+        ("es", "aura-2-agustina-es"),
+        ("ja", "aura-2-ama-ja"),
+    ):
+        tts = worker.build_tts(settings, language)
+        assert type(tts).__module__.startswith("livekit.plugins.deepgram")
+        assert tts._opts.model == expected
+
+
+def test_build_tts_deepgram_falls_through_for_languages_it_cannot_speak() -> None:
+    """Aura-2 ships no Vietnamese voice (verified against Deepgram's model list).
+
+    Selecting Deepgram must NOT hand vi to an English-only voice; it falls
+    through to the multilingual chain (ElevenLabs, then Gemini) instead.
+    """
+    pytest.importorskip("livekit.plugins.deepgram")
+    pytest.importorskip("livekit.plugins.elevenlabs")
+    tts = worker.build_tts(
+        _local_settings(
+            tts_provider="deepgram",
+            deepgram_api_key="k" * 40,
+            elevenlabs_api_key="e" * 40,
+        ),
+        "vi",
+    )
+    assert "deepgram" not in type(tts).__module__
+
+
+def test_require_live_providers_names_a_missing_deepgram_tts_key() -> None:
+    """TTS_PROVIDER=deepgram with no key must fail at startup, not mid-interview."""
+    with pytest.raises(RuntimeError) as err:
+        worker._require_live_providers(
+            _local_settings(tts_provider="deepgram", deepgram_api_key=None)
+        )
+    assert "DEEPGRAM_API_KEY (TTS_PROVIDER=deepgram)" in str(err.value)

@@ -248,7 +248,9 @@ def _require_live_providers(settings) -> None:
     elif stt == "soniox" and not settings.soniox_api_key:
         missing.append("SONIOX_API_KEY (STT_PROVIDER=soniox)")
     tts = (settings.tts_provider or "").lower()
-    if tts == "cartesia" and not settings.cartesia_api_key:
+    if tts == "deepgram" and not settings.deepgram_api_key:
+        missing.append("DEEPGRAM_API_KEY (TTS_PROVIDER=deepgram)")
+    elif tts == "cartesia" and not settings.cartesia_api_key:
         missing.append("CARTESIA_API_KEY (TTS_PROVIDER=cartesia)")
     elif tts == "elevenlabs" and not settings.elevenlabs_api_key:
         missing.append("ELEVENLABS_API_KEY (TTS_PROVIDER=elevenlabs)")
@@ -351,6 +353,23 @@ def build_llm(settings):
 _CARTESIA_LANGS = {"en", "es", "fr", "de", "ja", "zh", "pt", "hi", "it", "ko", "nl", "pl", "ru", "sv", "tr"}
 
 
+# Deepgram Aura-2 voices, one per language it actually speaks. Verified against
+# GET https://api.deepgram.com/v1/models on 2026-08-16: aura-2 ships voices for
+# de/en/es/fr/it/ja/nl ONLY. Notably absent: Vietnamese, Chinese, Korean — those
+# languages fall through to the ElevenLabs/Gemini chain below rather than being
+# spoken by an English voice. Picking a voice IS picking a language here, same as
+# Kokoro: the model id carries the language suffix.
+_DEEPGRAM_VOICE = {
+    "en": "aura-2-thalia-en",
+    "es": "aura-2-agustina-es",
+    "fr": "aura-2-agathe-fr",
+    "de": "aura-2-aurelia-de",
+    "it": "aura-2-cesare-it",
+    "ja": "aura-2-ama-ja",
+    "nl": "aura-2-beatrix-nl",
+}
+
+
 # Kokoro-82M encodes the language in the voice id's prefix, so picking a voice
 # IS picking a language: leaving the English default on a Japanese session would
 # read Japanese text with an American accent. Notably absent: Vietnamese —
@@ -427,6 +446,24 @@ def build_tts(settings, language="en"):
             language,
         )
 
+    # Deepgram Aura-2 is the default voice: one vendor for both STT and TTS keeps
+    # the turn path on a single connection pool and one key. It only speaks the
+    # languages in _DEEPGRAM_VOICE, so anything else (vi, zh, ko) falls through to
+    # the multilingual chain below instead of being mispronounced.
+    if provider == "deepgram" and settings.deepgram_api_key and language in _DEEPGRAM_VOICE:
+        from livekit.plugins import deepgram
+
+        return deepgram.TTS(
+            model=_DEEPGRAM_VOICE[language],
+            api_key=settings.deepgram_api_key,
+        )
+    if provider == "deepgram" and language not in _DEEPGRAM_VOICE:
+        log.info(
+            "build_tts: Deepgram Aura-2 has no %r voice; falling through to the "
+            "multilingual chain (ElevenLabs, then Gemini).",
+            language,
+        )
+
     # ElevenLabs Flash v2.5 (~75ms, 32 languages incl. vi) is the low-latency
     # multilingual voice: it wins when explicitly selected, and it's the preferred
     # voice for any language Cartesia can't speak (e.g. Vietnamese) — replacing the
@@ -457,6 +494,17 @@ def build_tts(settings, language="en"):
         from livekit.plugins import cartesia
 
         return cartesia.TTS(api_key=settings.cartesia_api_key, language=lang)
+    # Last resort. Prefer Deepgram when its key is present and it speaks the
+    # language: the keyless Cartesia default below cannot synthesize anything and
+    # only exists so an unconfigured worker still constructs.
+    if settings.deepgram_api_key and language in _DEEPGRAM_VOICE:
+        log.warning(
+            "build_tts: no TTS provider matched; using Deepgram Aura-2 (%s)",
+            _DEEPGRAM_VOICE[language],
+        )
+        from livekit.plugins import deepgram
+
+        return deepgram.TTS(model=_DEEPGRAM_VOICE[language], api_key=settings.deepgram_api_key)
     log.warning("build_tts: no configured TTS provider/key; using Cartesia default")
     from livekit.plugins import cartesia
 
