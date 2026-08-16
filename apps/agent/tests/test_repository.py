@@ -1,27 +1,32 @@
 """Offline tests for the session repositories.
 
-``MemoryRepository`` is exercised directly. ``SupabaseRepository`` — the
+``MemoryRepository`` is exercised directly. ``FirestoreRepository`` — the
 PRODUCTION persistence of the live-result write-back, scorecard save, status
 transitions, and the session-view read — is exercised through an injected fake
-recording client: ``_table()`` only imports the optional ``supabase`` SDK when
-``self._client is None``, so setting ``repo._client`` to a postgrest-shaped
-fake runs every real repository method offline (conftest blanks the creds, so
-nothing else in the suite ever constructs this class). The fake JSON-encodes
-every write payload exactly where the real SDK would, pinning that python-mode
-``model_dump()`` payloads stay JSON-safe on the hosted path too.
+recording client: ``_get_client()`` only imports the optional
+``google-cloud-firestore`` SDK when ``self._client is None``, so setting
+``repo._client`` to a Firestore-shaped fake runs every real repository method
+offline (conftest blanks the creds, so nothing else in the suite ever
+constructs this class). The fake JSON-encodes every write payload, pinning that
+python-mode ``model_dump()`` payloads stay serializable on the hosted path too
+(Firestore rejects arbitrary python objects just as postgrest does).
+
+``append_answer`` runs its read-modify-write inside a real Firestore
+transaction, whose decorator lives in the SDK; the fake repo subclass below
+substitutes an equivalent non-atomic read/apply/write so the *payload* logic is
+covered offline. Atomicity itself is the SDK's contract, not ours.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 from typing import Any
 
 from deepinterview_agent.core.adapters.mock import build_mock
 from deepinterview_agent.core.persistence.repository import (
+    FirestoreRepository,
     MemoryRepository,
-    SupabaseRepository,
 )
 from deepinterview_agent.shared_models import (
     AnswerRecord,
@@ -30,9 +35,6 @@ from deepinterview_agent.shared_models import (
     PrepRequest,
     ScoreCard,
 )
-
-# apps/agent/tests/ -> repo root -> the migrations that define public.sessions.
-_MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "supabase" / "migrations"
 
 
 def _run(coro):
@@ -67,8 +69,8 @@ def test_create_session_stamps_user_id() -> None:
     """Regression (report RLS bug, PR #5): the owning user must land on the row.
 
     Dropping the ``user_id=req.user_id`` stamp would silently pass the rest of
-    the suite while breaking the hosted layer's RLS ownership read
-    (``auth.uid() = user_id`` in supabase/migrations/0001_init.sql).
+    the suite while breaking the hosted layer's per-user ownership read
+    (``user_id`` matched against the caller's Firebase Auth uid).
     """
     repo = MemoryRepository()
     owner = "11111111-2222-3333-4444-555555555555"
@@ -122,96 +124,96 @@ def test_append_answer_and_save_scorecard() -> None:
     _run(repo.save_transcript(session_id, [{"role": "agent", "text": "hi"}]))
 
 
-# --- SupabaseRepository via an injected fake recording client -----------------
 
 
-class _FakeSupabaseResponse:
-    def __init__(self, data: list[dict]) -> None:
-        self.data = data
+# --- FirestoreRepository via an injected fake recording client -----------------
 
 
-class _FakeSessionsTable:
-    """One postgrest-style chained call (insert/update/select … execute).
+class _FakeSnapshot:
+    def __init__(self, data: dict | None) -> None:
+        self._data = data
+        self.exists = data is not None
 
-    Executes against a shared in-memory row store and appends
-    ``(op, payload_or_columns, session_id)`` to the shared log. Every WRITE
-    payload is ``json.dumps``-encoded first — the boundary where the real SDK
-    serializes — so a non-JSON type (datetime/enum) added to a model breaks
-    these tests instead of only the hosted deployment.
+    def to_dict(self) -> dict | None:
+        return dict(self._data) if self._data is not None else None
+
+
+class _FakeDocument:
+    """One Firestore document reference over a shared in-memory store.
+
+    Records ``(op, payload, doc_id)`` on the shared log and JSON-encodes every
+    write where the real client serializes, so a non-serializable type added to
+    a model breaks these tests instead of only the hosted deployment.
     """
 
+    def __init__(self, doc_id: str, store: dict[str, dict], log: list[tuple]) -> None:
+        self._id = doc_id
+        self._store = store
+        self._log = log
+
+    def set(self, payload: dict) -> None:
+        json.dumps(payload)
+        self._log.append(("set", payload, self._id))
+        self._store[self._id] = dict(payload)
+
+    def update(self, values: dict) -> None:
+        json.dumps(values)
+        self._log.append(("update", values, self._id))
+        row = self._store.get(self._id)
+        if row is None:
+            # Mirrors the real client, which raises NotFound on a missing doc.
+            raise KeyError(self._id)
+        row.update(values)
+
+    def get(self, transaction: Any = None) -> _FakeSnapshot:
+        self._log.append(("get", None, self._id))
+        return _FakeSnapshot(self._store.get(self._id))
+
+
+class _FakeCollection:
     def __init__(self, store: dict[str, dict], log: list[tuple]) -> None:
         self._store = store
         self._log = log
-        self._op: str | None = None
-        self._payload: Any = None
-        self._cols: str | None = None
-        self._id: str | None = None
 
-    def insert(self, payload: dict) -> _FakeSessionsTable:
-        self._op, self._payload = "insert", payload
-        return self
-
-    def update(self, values: dict) -> _FakeSessionsTable:
-        self._op, self._payload = "update", values
-        return self
-
-    def select(self, cols: str) -> _FakeSessionsTable:
-        self._op, self._cols = "select", cols
-        return self
-
-    def eq(self, col: str, value: str) -> _FakeSessionsTable:
-        assert col == "id", "the repository only ever filters by primary key"
-        self._id = value
-        return self
-
-    def limit(self, n: int) -> _FakeSessionsTable:
-        return self
-
-    def execute(self) -> _FakeSupabaseResponse:
-        if self._op == "insert":
-            json.dumps(self._payload)  # the SDK JSON-encodes; non-JSON fails HERE
-            self._log.append(("insert", self._payload, self._payload["id"]))
-            self._store[self._payload["id"]] = dict(self._payload)
-            return _FakeSupabaseResponse([self._payload])
-        if self._op == "update":
-            json.dumps(self._payload)
-            self._log.append(("update", self._payload, self._id))
-            row = self._store.get(self._id or "")
-            if row is not None:
-                row.update(self._payload)
-            return _FakeSupabaseResponse([row] if row is not None else [])
-        assert self._op == "select"
-        self._log.append(("select", self._cols, self._id))
-        row = self._store.get(self._id or "")
-        if row is None:
-            return _FakeSupabaseResponse([])
-        cols = [c.strip() for c in (self._cols or "").split(",")]
-        return _FakeSupabaseResponse([{c: row.get(c) for c in cols}])
+    def document(self, doc_id: str) -> _FakeDocument:
+        return _FakeDocument(doc_id, self._store, self._log)
 
 
-class _FakeSupabaseClient:
+class _FakeFirestoreClient:
     def __init__(self) -> None:
         self.rows: dict[str, dict] = {}
         self.log: list[tuple] = []
 
-    def table(self, name: str) -> _FakeSessionsTable:
-        assert name == "sessions", "all session persistence lives in public.sessions"
-        return _FakeSessionsTable(self.rows, self.log)
+    def collection(self, name: str) -> _FakeCollection:
+        assert name == "sessions", "all session persistence lives in one collection"
+        return _FakeCollection(self.rows, self.log)
 
 
-def _supabase_repo() -> tuple[SupabaseRepository, _FakeSupabaseClient]:
-    repo = SupabaseRepository("https://example.supabase.co", "service-role-key")
-    fake = _FakeSupabaseClient()
-    repo._client = fake  # _table() only imports the SDK when _client is None
+class _FakeTxnRepository(FirestoreRepository):
+    """Repository whose transaction helper runs against the fake, not the SDK."""
+
+    def _read_modify_write(self, session_id: str, apply: Any) -> None:
+        doc = self._get_client().collection(self._collection_name).document(session_id)
+        snap = doc.get()
+        if not snap.exists:
+            return
+        updates = apply(snap.to_dict() or {})
+        if updates:
+            doc.update(updates)
+
+
+def _firestore_repo() -> tuple[FirestoreRepository, _FakeFirestoreClient]:
+    repo = _FakeTxnRepository("deepinterview-test")
+    fake = _FakeFirestoreClient()
+    repo._client = fake  # _get_client() only imports the SDK when _client is None
     return repo, fake
 
 
-def test_supabase_create_and_context_round_trip_payloads_are_json_safe() -> None:
+def test_firestore_create_and_context_round_trip_payloads_are_serializable() -> None:
     """create_session/save_context write python-mode ``model_dump()`` payloads:
-    they must stay JSON-encodable AND round-trip through ``load_context`` —
-    the exact read the scoring pipeline performs on the hosted path."""
-    repo, fake = _supabase_repo()
+    they must stay serializable AND round-trip through ``load_context`` — the
+    exact read the scoring pipeline performs on the hosted path."""
+    repo, fake = _firestore_repo()
     session_id = _run(repo.create_session(_prep_request()))
     assert session_id.startswith("sess_")
     assert fake.rows[session_id]["status"] == "prep"
@@ -219,7 +221,7 @@ def test_supabase_create_and_context_round_trip_payloads_are_json_safe() -> None
 
     ctx = build_mock(InterviewContext)
     assert isinstance(ctx, InterviewContext)
-    _run(repo.save_context(session_id, ctx))  # raises in execute() if non-JSON
+    _run(repo.save_context(session_id, ctx))  # raises in set/update if non-JSON
 
     loaded = _run(repo.load_context(session_id))
     assert loaded is not None
@@ -228,21 +230,21 @@ def test_supabase_create_and_context_round_trip_payloads_are_json_safe() -> None
     assert _run(repo.load_context("sess_missing")) is None
 
 
-def test_supabase_create_session_stamps_user_id_column() -> None:
-    """The RLS ownership column (report bug, PR #5) must land on the INSERT
-    payload on the Supabase path too — auth.uid() = user_id reads depend on it."""
-    repo, fake = _supabase_repo()
-    owner = "11111111-2222-3333-4444-555555555555"
+def test_firestore_create_session_stamps_user_id_field() -> None:
+    """The ownership field must land on the created document so a hosted,
+    per-user read can scope sessions to their Firebase Auth uid."""
+    repo, fake = _firestore_repo()
+    owner = "firebase-uid-abc123"
     sid = _run(repo.create_session(_prep_request().model_copy(update={"user_id": owner})))
     assert fake.rows[sid]["user_id"] == owner
     anon = _run(repo.create_session(_prep_request()))
     assert fake.rows[anon]["user_id"] is None
 
 
-def test_supabase_update_status_writes_each_live_terminal_status() -> None:
+def test_firestore_update_status_writes_each_live_terminal_status() -> None:
     """The live path's status transitions (no_answers / error / complete) must
-    each become a ``{"status": ...}`` update against the row."""
-    repo, fake = _supabase_repo()
+    each become a ``{"status": ...}`` update against the document."""
+    repo, fake = _firestore_repo()
     sid = _run(repo.create_session(_prep_request()))
     for status in ("no_answers", "error", "complete"):
         _run(repo.update_status(sid, status))
@@ -250,23 +252,22 @@ def test_supabase_update_status_writes_each_live_terminal_status() -> None:
         assert ("update", {"status": status}, sid) in fake.log
 
 
-def test_supabase_save_scorecard_payload_is_json_encodable() -> None:
-    """save_scorecard ships ``sc.model_dump()`` (python mode) to the SDK: it
-    must JSON-encode and land in the ``scorecard`` column unchanged."""
-    repo, fake = _supabase_repo()
+def test_firestore_save_scorecard_payload_is_serializable() -> None:
+    """save_scorecard ships ``sc.model_dump()`` (python mode): it must encode and
+    land in the ``scorecard`` field unchanged."""
+    repo, fake = _firestore_repo()
     sid = _run(repo.create_session(_prep_request()))
     sc = build_mock(ScoreCard)
     assert isinstance(sc, ScoreCard)
-    _run(repo.save_scorecard(sid, sc))  # raises in execute() if non-JSON
+    _run(repo.save_scorecard(sid, sc))  # raises in update() if non-JSON
     assert fake.rows[sid]["scorecard"] == sc.model_dump()
 
 
-def test_supabase_append_answer_read_modify_writes_the_context_blob() -> None:
-    """Supabase ``append_answer`` mutates the canonical context blob (the
-    Memory/Supabase asymmetry test_score.py's docstring warns about): the
-    appended answer must be visible to a later ``load_context``. With no
-    context saved yet it is a silent no-op (no update issued)."""
-    repo, fake = _supabase_repo()
+def test_firestore_append_answer_read_modify_writes_the_context_map() -> None:
+    """``append_answer`` mutates the canonical context map: the appended answer
+    must be visible to a later ``load_context``. With no context saved yet it is
+    a silent no-op (no update issued), and an unknown session never raises."""
+    repo, fake = _firestore_repo()
     sid = _run(repo.create_session(_prep_request()))
     ctx = build_mock(InterviewContext)
     assert isinstance(ctx, InterviewContext)
@@ -292,13 +293,15 @@ def test_supabase_append_answer_read_modify_writes_the_context_blob() -> None:
     _run(repo.append_answer(sid2, answer))
     assert len([op for op, *_ in fake.log if op == "update"]) == updates_before
 
+    # Unknown document -> no write, no raise.
+    _run(repo.append_answer("sess_missing", answer))
 
-def test_supabase_get_session_view_selects_migration_columns_and_maps_row() -> None:
-    """``get_session_view`` must select exactly the columns the migrations
-    create and map them onto SessionView (status/progress/prep_warnings/
-    context/scorecard) — a renamed or dropped column fails here, not only in
-    the hosted deployment."""
-    repo, fake = _supabase_repo()
+
+def test_firestore_get_session_view_maps_the_document() -> None:
+    """``get_session_view`` must map the stored document onto SessionView
+    (status/progress/prep_warnings/context/scorecard), with idempotent
+    progress/warning appends and a None for unknown ids (the API 404s on it)."""
+    repo, _fake = _firestore_repo()
     sid = _run(repo.create_session(_prep_request()))
     ctx = build_mock(InterviewContext)
     sc = build_mock(ScoreCard)
@@ -307,6 +310,7 @@ def test_supabase_get_session_view_selects_migration_columns_and_maps_row() -> N
     _run(repo.mark_progress(sid, "cv_analysis"))
     _run(repo.mark_progress(sid, "cv_analysis"))  # idempotent: no duplicate
     _run(repo.add_warnings(sid, ["JD text is very short."]))
+    _run(repo.add_warnings(sid, ["JD text is very short."]))  # idempotent
     _run(repo.update_status(sid, "complete"))
 
     view = _run(repo.get_session_view(sid))
@@ -319,14 +323,23 @@ def test_supabase_get_session_view_selects_migration_columns_and_maps_row() -> N
     assert view.scorecard is not None
     assert view.scorecard.model_dump() == sc.model_dump()
 
-    # Pin the select column list against what the migrations actually create.
-    select_cols = [cols for op, cols, row_id in fake.log if op == "select" and row_id == sid][-1]
-    assert select_cols == "id,status,progress,prep_warnings,context,scorecard"
-    migration_files = sorted(_MIGRATIONS_DIR.glob("*.sql"))
-    assert migration_files, f"no migrations found under {_MIGRATIONS_DIR}"
-    migrations_sql = "".join(p.read_text() for p in migration_files)
-    for col in select_cols.split(","):
-        assert col in migrations_sql, f"selected column {col!r} not defined by any migration"
-
-    # Unknown ids map to None (the API turns this into a 404, not a 500).
+    # Unknown ids map to None (the API turns this into a 404, not a 500), and
+    # the progress/warning appends stay silent no-ops rather than raising.
     assert _run(repo.get_session_view("sess_missing")) is None
+    _run(repo.mark_progress("sess_missing", "cv_analysis"))
+    _run(repo.add_warnings("sess_missing", ["nope"]))
+
+
+def test_get_repository_selects_firestore_only_when_project_id_is_set() -> None:
+    """``FIREBASE_PROJECT_ID`` is the switch. Credentials alone must NOT select
+    Firestore (it could not build a client) — that half-configured case falls
+    back to memory and is logged as a deployment mistake."""
+    from deepinterview_agent.core.config import Settings
+    from deepinterview_agent.core.persistence.repository import get_repository
+
+    firestore_repo = get_repository(Settings(firebase_project_id="proj-1"))
+    assert isinstance(firestore_repo, FirestoreRepository)
+
+    assert isinstance(get_repository(Settings()), MemoryRepository)
+    half = get_repository(Settings(firebase_credentials_path="/tmp/key.json"))
+    assert isinstance(half, MemoryRepository)

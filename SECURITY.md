@@ -51,10 +51,10 @@ codebase and out of git history:
 - **Never commit `.env`, `.env.local`, real keys, tokens, or recordings.** Only
   `.env.example` (placeholder values, no real secrets) belongs in version
   control. `.env*` is already covered by `.gitignore` — keep it that way.
-- Supply all provider credentials (LLM, STT, TTS, search, Supabase, Cloudflare
+- Supply all provider credentials (LLM, STT, TTS, search, Firebase, Cloudflare
   R2, LiveKit, billing) through environment variables, never hard-coded
   defaults.
-- The Supabase **service-role key** bypasses Row Level Security. It is
+- The Firebase **service-account key** bypasses Firestore security rules. It is
   server-only — never expose it to the browser, a `NEXT_PUBLIC_*` variable, or
   client bundles.
 - If a secret is ever committed, treat it as compromised: **rotate the

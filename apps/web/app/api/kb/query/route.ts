@@ -6,7 +6,7 @@ import {
   type KbQueryResponse,
 } from "@deepinterview/shared";
 import { gateRequest } from "@deepinterview/ee";
-import { getUser } from "@/lib/supabase/server";
+import { getUser } from "@/lib/firebase/server";
 import { serverEnv } from "@/lib/env";
 
 // Reads server-only env (LIGHTRAG_URL) and the per-request user; never prerender.

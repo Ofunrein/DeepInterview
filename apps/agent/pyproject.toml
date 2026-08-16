@@ -20,7 +20,10 @@ dependencies = [
 [project.optional-dependencies]
 gemini = ["google-genai>=2.14"]
 openai = ["openai>=2.48"]
-supabase = ["supabase>=2.31"]
+# Firebase Firestore session store (FIREBASE_PROJECT_ID). The Admin SDK proper
+# is not needed server-side: google-cloud-firestore is the same wire client
+# without the extra Firebase surface.
+firebase = ["google-cloud-firestore>=2.22"]
 tavily = ["tavily-python>=0.7"]
 # Live voice loop (WP-5) — heavy; install with: uv sync --extra livekit.
 # livekit-agents 1.6.x + the cascaded STT->LLM->TTS plugin set the worker needs:

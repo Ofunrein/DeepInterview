@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { FirebaseSessionSync } from "@/components/firebase-session-sync";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -64,6 +65,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             }}
           />
         </noscript>
+        <FirebaseSessionSync />
         {children}
       </body>
     </html>

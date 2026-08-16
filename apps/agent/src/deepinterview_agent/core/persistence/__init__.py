@@ -1,1 +1,1 @@
-"""Session persistence: protocol + in-memory and Supabase repositories."""
+"""Session persistence: protocol + in-memory and Firestore repositories."""

@@ -50,5 +50,5 @@ class SessionView(BaseModel):
     context: InterviewContext | None = None
     # The assembled scorecard once post-interview scoring has run (status
     # "complete"). Surfaced here so the web report can read it through the agent
-    # API — no Supabase/RLS/auth on the read path (OSS runs without sign-in).
+    # API — no database rules/auth on the read path (OSS runs without sign-in).
     scorecard: ScoreCard | None = None

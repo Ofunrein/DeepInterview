@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { isR2Configured, isSupabaseConfigured } from "@/lib/env";
-import { getUser } from "@/lib/supabase/server";
+import { isR2Configured, isFirebaseConfigured } from "@/lib/env";
+import { getUser } from "@/lib/firebase/server";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { Button } from "@/components/ui/button";
 import { LanguageToggle } from "@/components/language-toggle";
@@ -22,7 +22,7 @@ export default async function SetupPage() {
 
   // Soft auth signal: surfaces a sign-out affordance when signed in. Page-level
   // gating lives on /interview; setup itself stays reachable in dev mode.
-  const user = isSupabaseConfigured() ? await getUser() : null;
+  const user = isFirebaseConfigured() ? await getUser() : null;
 
   return (
     <main className="mx-auto max-w-[720px] px-6 py-12">

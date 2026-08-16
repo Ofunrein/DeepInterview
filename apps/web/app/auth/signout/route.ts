@@ -1,14 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { SESSION_COOKIE } from "@/lib/firebase/server";
 
 /**
- * Sign the user out, then redirect home. No-op on the auth side when Supabase
- * is unconfigured (dev mode) — still redirects so the button always works.
+ * Sign the user out and redirect home. Clearing the ID-token cookie is what
+ * signs them out server-side; the browser SDK drops its own session via the
+ * token listener, so this works whether or not Firebase is configured.
  */
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  if (supabase) {
-    await supabase.auth.signOut();
-  }
-  return NextResponse.redirect(new URL("/", request.url), { status: 303 });
+  const response = NextResponse.redirect(new URL("/", request.url), {
+    status: 303,
+  });
+  response.cookies.set({
+    name: SESSION_COOKIE,
+    value: "",
+    path: "/",
+    maxAge: 0,
+  });
+  return response;
 }

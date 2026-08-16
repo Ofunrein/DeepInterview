@@ -10,12 +10,13 @@ and turning a 4-second suite into a multi-minute one that hammers the live key.
 We force every provider to ``mock`` via ``os.environ`` BEFORE any test imports
 ``get_settings()`` (whose result is ``lru_cache``d). ``os.environ`` takes precedence
 over ``.env`` in pydantic-settings, so this restores the documented offline contract
-regardless of what ``.env`` contains. We likewise BLANK the Supabase creds so
-``get_repository()`` falls back to the in-memory repo: a real ``.env`` now ships a
-Supabase URL + service-role key, and without this the suite would select
-``SupabaseRepository`` and fail on the optional ``supabase`` SDK (not installed in
-the test venv). Set ``DEEPINTERVIEW_TEST_USE_ENV=1`` to opt out (e.g. a deliberate
-live integration run).
+regardless of what ``.env`` contains. We likewise BLANK the Firebase creds so
+``get_repository()`` falls back to the in-memory repo: a real ``.env`` ships a
+Firebase project id + service-account path, and without this the suite would
+select ``FirestoreRepository`` and fail on the optional
+``google-cloud-firestore`` SDK (not installed in the test venv). Set
+``DEEPINTERVIEW_TEST_USE_ENV=1`` to opt out (e.g. a deliberate live integration
+run).
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ if os.environ.get("DEEPINTERVIEW_TEST_USE_ENV") != "1":
     ):
         os.environ[_var] = "mock"
     # Empty string overrides ``.env`` and is falsy, so the
-    # ``settings.supabase_url and settings.supabase_service_role_key`` guard in
-    # ``get_repository()`` is False → deterministic in-memory ``MemoryRepository``.
-    for _var in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"):
+    # ``settings.firebase_project_id`` guard in ``get_repository()`` is False →
+    # deterministic in-memory ``MemoryRepository``.
+    for _var in ("FIREBASE_PROJECT_ID", "FIREBASE_CREDENTIALS_PATH"):
         os.environ[_var] = ""

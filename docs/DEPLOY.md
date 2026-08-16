@@ -21,7 +21,7 @@ lowest-latency major cloud region for the region:
 - Co-locating the **LiveKit media + the agent worker** in SGP keeps the
   realtime audio path short; the heavy reasoning already ran in prep (handoff
   §2 prep/live/post split), so the live loop just needs low RTT.
-- Vercel `sin1`, LiveKit Cloud Singapore, and Supabase `ap-southeast-1` all live
+- Netlify, LiveKit Cloud Singapore, and Firestore `asia-southeast1` all live
   in the same metro, so cross-service hops stay intra-region.
 
 Region is pinned in:
@@ -29,7 +29,7 @@ Region is pinned in:
 - `vercel.json` → `"regions": ["sin1"]` (web).
 - `deploy.yml` → worker deploy step targets LiveKit Cloud **Singapore** (or
   Render / Fly `sin`).
-- Supabase project + R2 bucket: create in / near `ap-southeast-1`.
+- Firebase project (Firestore) + R2 bucket: create in / near `asia-southeast1`.
 
 ---
 
@@ -41,7 +41,7 @@ Region is pinned in:
 | **agent-api**    | Container (Render/Fly `sin`) — FastAPI prep/score | 8000 | `/health`  |
 | **agent-worker** | LiveKit Cloud Agents **SGP** (live voice loop)  | —    | LiveKit Cloud |
 | **lightrag**     | Container (`sin`) — knowledge sidecar           | 9621 | `/health`  |
-| **Supabase**     | Managed (`ap-southeast-1`) — Postgres/Auth/Storage | —  | managed    |
+| **Firebase**     | Managed (`asia-southeast1`) — Firestore/Auth       | —  | managed    |
 | **R2**           | Cloudflare (global) — CV files + recordings     | —    | managed    |
 
 The agent ships as **one image, two run modes** (`apps/agent/Dockerfile`):
@@ -123,11 +123,11 @@ builds the `@deepinterview/shared` workspace dependency first), with
 Secrets are env vars only (`.env`, never committed; see `.env.example`). Set the
 same keys as **deployment secrets** on each platform:
 
-- **Vercel** (web): `NEXT_PUBLIC_*` (Supabase URL/anon key, app URL), and any
+- **Netlify** (web): `NEXT_PUBLIC_*` (Firebase web config, app URL), and any
   server keys the web token endpoint needs.
 - **LiveKit Cloud** (worker): `LIVEKIT_URL/API_KEY/API_SECRET`, STT/TTS/LLM
   provider + key (Soniox/Deepgram · Cartesia/ElevenLabs · Gemini/OpenAI),
-  Supabase service-role key, `LIGHTRAG_URL`.
+  `FIREBASE_PROJECT_ID` / `FIREBASE_CREDENTIALS_PATH`, `LIGHTRAG_URL`.
 - **agent-api / lightrag** containers: provider keys as needed; both run offline
   on mocks with none set.
 
@@ -184,7 +184,7 @@ are a hosted concern that lives in the private cloud fork, not here.
 
 ## 8. Checklist
 
-- [ ] Supabase project in `ap-southeast-1`; R2 bucket created.
+- [ ] Firebase project with Firestore in `asia-southeast1`; R2 bucket created.
 - [ ] Secrets set on Vercel + LiveKit Cloud (+ container host).
 - [ ] `vercel.json` linked to the Vercel project (region `sin1`).
 - [ ] Worker image built with `--extra livekit`; deployed to LiveKit Cloud SGP.

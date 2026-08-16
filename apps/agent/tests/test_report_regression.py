@@ -20,7 +20,7 @@ report pipeline scores them like any saved answer.
 Repo sharing: ``build_deps()`` (used inline by these tests, mirroring
 ``test_live._build_context``) and every API route resolve to the SAME cached
 ``Deps`` whose repo is the module-singleton ``MemoryRepository`` (conftest blanks
-the Supabase creds), so a session prepped inline is visible to the TestClient
+the Firebase creds), so a session prepped inline is visible to the TestClient
 and vice versa — exactly the pattern ``test_app`` relies on.
 """
 

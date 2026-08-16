@@ -120,7 +120,7 @@ deepinterview/
 │   │   ├── app/api/         # token · upload · kb/query (proxy) · billing/webhook · health
 │   │   ├── app/{setup,interview,report,prep,...}/   # screens
 │   │   ├── components/      # interview · report · prep · avatar · ui
-│   │   └── lib/             # i18n · plan/billing · supabase · livekit · r2 · kb
+│   │   └── lib/             # i18n · plan/billing · firebase · livekit · r2 · kb
 │   └── agent/               # Python 3.11+ LiveKit worker + LangGraph pipelines
 │       └── src/deepinterview_agent/
 │           ├── api/         # FastAPI routers: /api/prep, /api/score

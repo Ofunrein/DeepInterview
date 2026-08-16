@@ -49,7 +49,7 @@ def test_prep_endpoint_creates_ready_session() -> None:
     assert payload["context"] is not None
     assert payload["context"]["session_id"] == session_id
 
-    # The route uses the module-singleton MemoryRepository (no Supabase configured),
+    # The route uses the module-singleton MemoryRepository (no Firestore configured),
     # so the session it wrote is inspectable here too.
     assert repo_mod._MEMORY_REPO.get_status(session_id) == "ready"
 

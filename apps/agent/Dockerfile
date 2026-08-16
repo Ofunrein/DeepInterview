@@ -33,20 +33,20 @@ WORKDIR /app
 # one-line src change re-downloaded the turn-detector weights (minutes).
 COPY apps/agent/pyproject.toml apps/agent/uv.lock ./
 
-# Base deps + the lightweight provider SDKs (gemini/openai/supabase/tavily).
-# Without them, setting e.g. SUPABASE_URL or LLM_PROVIDER=gemini in .env makes
+# Base deps + the lightweight provider SDKs (gemini/openai/firebase/tavily).
+# Without them, setting e.g. FIREBASE_PROJECT_ID or LLM_PROVIDER=gemini in .env makes
 # the API 500 (ModuleNotFoundError) instead of using the configured provider —
 # the image must honor whatever providers the env selects. Still excluded:
 # `livekit` (heavy; worker stages below) and `observability` (opt-in tracing).
-RUN uv sync --frozen --no-dev --no-install-project --extra gemini --extra openai --extra supabase --extra tavily \
- || uv sync --no-dev --no-install-project --extra gemini --extra openai --extra supabase --extra tavily
+RUN uv sync --frozen --no-dev --no-install-project --extra gemini --extra openai --extra firebase --extra tavily \
+ || uv sync --no-dev --no-install-project --extra gemini --extra openai --extra firebase --extra tavily
 
 # ---- worker-deps: + the `livekit` extra and baked model weights (no src) ----
 # Branches BEFORE the source copy so the heavy plugin install and the
 # turn-detector/Silero model downloads are cache-stable across code changes.
 FROM base AS worker-deps
-RUN uv sync --frozen --no-dev --no-install-project --extra livekit --extra gemini --extra openai --extra supabase --extra tavily \
- || uv sync --no-dev --no-install-project --extra livekit --extra gemini --extra openai --extra supabase --extra tavily
+RUN uv sync --frozen --no-dev --no-install-project --extra livekit --extra gemini --extra openai --extra firebase --extra tavily \
+ || uv sync --no-dev --no-install-project --extra livekit --extra gemini --extra openai --extra firebase --extra tavily
 # Bake the semantic turn-detector model weights (and Silero VAD) into the
 # image: importing each plugin registers it, download_files() fetches its
 # model. Without this the FIRST live session stalls on a runtime download.
@@ -57,8 +57,8 @@ from livekit.agents.plugin import Plugin; \
 # ---- api: deps + source (compose `agent-api` builds target: api) ------------
 FROM base AS api
 COPY apps/agent/src ./src
-RUN uv sync --frozen --no-dev --extra gemini --extra openai --extra supabase --extra tavily \
- || uv sync --no-dev --extra gemini --extra openai --extra supabase --extra tavily
+RUN uv sync --frozen --no-dev --extra gemini --extra openai --extra firebase --extra tavily \
+ || uv sync --no-dev --extra gemini --extra openai --extra firebase --extra tavily
 
 EXPOSE 8000
 
@@ -71,7 +71,7 @@ CMD ["uv", "run", "uvicorn", "deepinterview_agent.app:app", "--host", "0.0.0.0",
 # ModuleNotFoundError.
 FROM worker-deps AS worker
 COPY apps/agent/src ./src
-RUN uv sync --frozen --no-dev --extra livekit --extra gemini --extra openai --extra supabase --extra tavily \
- || uv sync --no-dev --extra livekit --extra gemini --extra openai --extra supabase --extra tavily
+RUN uv sync --frozen --no-dev --extra livekit --extra gemini --extra openai --extra firebase --extra tavily \
+ || uv sync --no-dev --extra livekit --extra gemini --extra openai --extra firebase --extra tavily
 # `start` connects to LiveKit and waits for jobs (needs LIVEKIT_*/STT/TTS keys).
 CMD ["uv", "run", "python", "-m", "deepinterview_agent.worker", "start"]

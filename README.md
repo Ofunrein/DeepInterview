@@ -36,7 +36,7 @@ DeepInterview closes the **prep ⇄ interview ⇄ feedback** loop: heavy reasoni
 
 ## Quickstart
 
-> **No sign-in required.** The OSS self-host runs **anonymously** — setup, the live interview, and the report all work with **no account and no login**. (The report reads directly from the agent API.) Supabase auth + billing are a **hosted-only** layer; you don't need them to run the loop yourself.
+> **No sign-in required.** The OSS self-host runs **anonymously** — setup, the live interview, and the report all work with **no account and no login**. (The report reads directly from the agent API.) Firebase auth is a **hosted-only** layer; you don't need it to run the loop yourself.
 >
 > **Zero-upload demo:** the `/setup` screen has a one-click **Quick demo** that fills a sample CV + JD, so you can try the whole loop without uploading anything.
 
@@ -80,7 +80,7 @@ The button deploys **`apps/web`** to Vercel. The Python **agent** is not serverl
 
 <details><summary>Configuring providers & adding a language pack</summary>
 
-- **Keys** live in `.env` only (never committed). See [`.env.example`](.env.example) for the full list (LiveKit, Supabase, R2, STT/TTS/LLM, Tavily/Exa, observability).
+- **Keys** live in `.env` only (never committed). See [`.env.example`](.env.example) for the full list (LiveKit, Firebase, R2, STT/TTS/LLM, Tavily/Exa, observability).
 - **Provider choice** is per-component: set `STT_PROVIDER`, `TTS_PROVIDER`, `LLM_PROVIDER` and the matching key. With no keys set, the agent falls back to **mock adapters** so everything still runs offline.
 - **Languages** are pluggable packs. UI strings live in `apps/web/lib/i18n/messages/` (EN + VI shipped); each planned question's `text` is a `LocalizedText` map (`text.en` / `text.vi` / …) alongside a `language_mode`.
 
@@ -141,7 +141,7 @@ Full setup, hardware notes and troubleshooting: **[docs/LOCAL_MODELS.md](docs/LO
 > - **[2026.08]** **Run the whole thing on your own machine.** The LLM, speech-to-text and text-to-speech stages now point at local OpenAI-compatible servers — **Ollama**, a local **Whisper** server and **Kokoro** — so an interview needs no model keys at all. Verified end to end on Apple Silicon; pair it with `livekit-server --dev` for a fully offline stack. English voices for now, and turn latency isn't benchmarked. See [docs/LOCAL_MODELS.md](docs/LOCAL_MODELS.md).
 > - **[2026.07]** **Now on Gemini 3.6 Flash + LiveKit Agents 1.6.** Prep and scoring run on **Gemini 3.6 Flash**; the live voice stack moved to livekit-agents 1.6 (Gemini 3-ready function calling on the turn path), and live captions now read as one paragraph per speaker instead of per-fragment lines.
 > - **[2026.07]** **The open-source build is fully uncapped — billing removed.** Self-host with your own keys: no plan gates, no interview caps, no billing tables. Payments live only in the hosted edition; the OSS schema got leaner.
-> - **[2026.07]** **Hardening release.** Opt-in shared-secret auth for the agent API and knowledge sidecar, locked-down Supabase row policies, and periodic transcript checkpointing so a killed process loses seconds of your interview, not all of it.
+> - **[2026.07]** **Hardening release.** Opt-in shared-secret auth for the agent API and knowledge sidecar, locked-down datastore access rules, and periodic transcript checkpointing so a killed process loses seconds of your interview, not all of it.
 > - **[2026.07]** **The study coach now grounds answers in *your* session.** Prep ingests your CV, the JD, and company research into the knowledge sidecar keyed by session — coach answers cite your own materials, not generic tips.
 > - **[2026.06]** **Live voice interviews run on real providers.** The full loop — personalized prep (real Gemini CV/JD analysis + company research) → real-time voice interview on LiveKit (Deepgram STT · Gemini · Cartesia/ElevenLabs TTS) → scored report — now runs end to end, with semantic end-of-turn detection and noise-robust, word-gated barge-in.
 > - **[next]** A hosted live demo, and more language packs.
@@ -188,7 +188,7 @@ Full request-flow diagrams and the multi-agent design live in [`docs/ARCHITECTUR
 | Edition | What you get | Auth & billing | Status |
 |---|---|---|---|
 | **Self-host (Apache 2.0)** | The whole platform, your keys, your data. Runs **anonymously** — no sign-in. | None required | ✅ Available now (this repo) |
-| **Cloud (hosted)** | Managed hosting with accounts + plan tiers, so you skip the ops. | Supabase auth + billing | 🟡 Planned (pre-launch) |
+| **Cloud (hosted)** | Managed hosting with accounts + plan tiers, so you skip the ops. | Firebase auth + billing | 🟡 Planned (pre-launch) |
 
 > The **auth + billing layer is hosted-only** — the open-source self-host runs the full prep → interview → report → coach loop without any account.
 

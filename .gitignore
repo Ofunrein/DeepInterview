@@ -5,6 +5,10 @@ node_modules/
 # Build output
 dist/
 .next/
+# Netlify CLI build output (functions, edge handlers, vendored deno std).
+.netlify/
+# Netlify CLI writes this when bundling edge functions.
+deno.lock
 .turbo/
 out/
 *.tsbuildinfo
@@ -38,8 +42,6 @@ site/
 # Local agent instructions — never publish
 CLAUDE.md
 
-# Supabase CLI local state (project ref, pooler URL)
-supabase/.temp/
 
 # Avatar media is never committed (docs/AVATARS.md): local-dev drop-in only;
 # accepted packs are published as GitHub Release artifacts + CDN.

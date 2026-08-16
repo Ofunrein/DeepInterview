@@ -217,33 +217,42 @@ async function collectSearch(existing: Values, values: Values): Promise<void> {
   }
 }
 
-async function collectSupabase(
+async function collectFirebase(
   existing: Values,
   values: Values,
 ): Promise<void> {
   const use = ensure(
     await confirm({
       message:
-        "Configure Supabase (sign-in, file storage, saved reports)? The OSS app runs fine without it.",
-      initialValue: Boolean(existing.SUPABASE_URL),
+        "Configure Firebase (sign-in, saved sessions in Firestore)? The OSS app runs fine without it.",
+      initialValue: Boolean(existing.FIREBASE_PROJECT_ID),
     }),
   );
   if (!use) return;
-  const url = await field(
-    "Supabase project URL (https://xxxx.supabase.co)",
-    existing.SUPABASE_URL,
-    "https://…supabase.co",
+  const projectId = await field(
+    "Firebase project id",
+    existing.FIREBASE_PROJECT_ID,
+    "my-project",
   );
-  values.SUPABASE_URL = url;
-  // The browser auth client reads the NEXT_PUBLIC_-prefixed name; it's the same URL.
-  values.NEXT_PUBLIC_SUPABASE_URL = url;
-  values.SUPABASE_SERVICE_ROLE_KEY = await secret(
-    "Supabase service-role key",
-    existing.SUPABASE_SERVICE_ROLE_KEY,
+  // Agent API: Firestore session store.
+  values.FIREBASE_PROJECT_ID = projectId;
+  values.FIREBASE_CREDENTIALS_PATH = await field(
+    "Service-account JSON path (blank = Application Default Credentials)",
+    existing.FIREBASE_CREDENTIALS_PATH,
+    "/path/to/serviceAccount.json",
   );
-  values.NEXT_PUBLIC_SUPABASE_ANON_KEY = await secret(
-    "Supabase anon (public) key",
-    existing.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  // Web app: browser auth config. The project id is the same one; the API key
+  // and auth domain come from the Firebase console's web-app snippet.
+  values.NEXT_PUBLIC_FIREBASE_PROJECT_ID = projectId;
+  values.NEXT_PUBLIC_FIREBASE_API_KEY = await field(
+    "Firebase web API key",
+    existing.NEXT_PUBLIC_FIREBASE_API_KEY,
+    "AIza…",
+  );
+  values.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = await field(
+    "Firebase auth domain",
+    existing.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    `${projectId || "my-project"}.firebaseapp.com`,
   );
 }
 
@@ -318,7 +327,7 @@ async function runWizard(existing: Values): Promise<Values> {
       "100% local models",
     );
     await collectLiveKit(existing, values);
-    await collectSupabase(existing, values);
+    await collectFirebase(existing, values);
     return values;
   }
 
@@ -339,7 +348,7 @@ async function runWizard(existing: Values): Promise<Values> {
     await collectLiveKit(existing, values);
   }
   await collectSearch(existing, values);
-  await collectSupabase(existing, values);
+  await collectFirebase(existing, values);
   return values;
 }
 

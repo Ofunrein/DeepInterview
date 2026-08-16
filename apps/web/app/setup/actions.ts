@@ -3,8 +3,8 @@
 import type { PrepRequest } from "@deepinterview/shared";
 import { features } from "@deepinterview/ee";
 import { requestPrep } from "@/lib/api";
-import { getUser } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/env";
+import { getUser } from "@/lib/firebase/server";
+import { isFirebaseConfigured } from "@/lib/env";
 
 export type StartSessionResult =
   | { ok: true; session_id: string }
@@ -25,7 +25,7 @@ export type StartSessionResult =
  *
  * OSS is self-host, bring-your-own-keys, and UNCAPPED: there is no billing and
  * no per-tier interview limit (payments/gating live in the private cloud fork).
- * When Supabase is configured we resolve the signed-in user so the agent can
+ * When Firebase is configured we resolve the signed-in user so the agent can
  * stamp `sessions.user_id`; an anonymous user simply proceeds. A distribution
  * that requires auth (the ee `features.auth` seam, off in OSS) fails closed.
  */
@@ -34,7 +34,7 @@ export async function startSession(
 ): Promise<StartSessionResult> {
   let userId: string | null = null;
 
-  if (isSupabaseConfigured()) {
+  if (isFirebaseConfigured()) {
     const user = await getUser();
     if (user) userId = user.id;
   }
@@ -43,7 +43,7 @@ export async function startSession(
     // Distribution gate (no-op in OSS): server actions are public POST
     // endpoints, so a required-auth distribution must fail closed here even
     // though its proxy already redirects anonymous visitors off /setup.
-    // Deliberately independent of Supabase config: a missing/broken env must
+    // Deliberately independent of Firebase config: a missing/broken env must
     // never let anonymous callers create sessions in such a build.
     return {
       ok: false,

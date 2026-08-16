@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { createBrowserClient } from "@/lib/supabase/client";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { createBrowserAuth, syncSessionCookie } from "@/lib/firebase/client";
 import { useMessages } from "@/lib/i18n/client";
 import { t } from "@/lib/i18n";
 import {
@@ -39,9 +40,9 @@ function safeNext(raw: string | null): string {
 export default function LoginPage() {
   const router = useRouter();
   const messages = useMessages();
-  // createBrowserClient() reads NEXT_PUBLIC_* (inlined) so this is correct
-  // client-side: null means Supabase is unconfigured → dev mode.
-  const supabase = useMemo(() => createBrowserClient(), []);
+  // createBrowserAuth() reads NEXT_PUBLIC_* (inlined) so this is correct
+  // client-side: null means Firebase is unconfigured → dev mode.
+  const auth = useMemo(() => createBrowserAuth(), []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,15 +51,16 @@ export default function LoginPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase) return;
+    if (!auth) return;
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
-      setError(error.message);
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      // Hand the ID token to the server so server components, route handlers
+      // and the proxy can resolve this user on the very next navigation.
+      await syncSessionCookie(await cred.user.getIdToken());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sign in.");
       setBusy(false);
       return;
     }
@@ -78,7 +80,7 @@ export default function LoginPage() {
           <CardDescription>{t(messages, "auth.loginSubtitle")}</CardDescription>
         </CardHeader>
         <CardContent className="pb-6">
-          {supabase ? (
+          {auth ? (
             <form onSubmit={onSubmit} className="flex flex-col gap-4">
               <div>
                 <Label htmlFor="email">{t(messages, "auth.emailLabel")}</Label>

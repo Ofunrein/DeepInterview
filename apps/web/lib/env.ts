@@ -8,11 +8,14 @@
 
 /** Browser-safe public config. Inlined by Next at build time. */
 export const publicEnv = {
-  get supabaseUrl(): string | undefined {
-    return process.env.NEXT_PUBLIC_SUPABASE_URL || undefined;
+  get firebaseApiKey(): string | undefined {
+    return process.env.NEXT_PUBLIC_FIREBASE_API_KEY || undefined;
   },
-  get supabaseAnonKey(): string | undefined {
-    return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || undefined;
+  get firebaseAuthDomain(): string | undefined {
+    return process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || undefined;
+  },
+  get firebaseProjectId(): string | undefined {
+    return process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || undefined;
   },
   get appUrl(): string {
     return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -21,9 +24,6 @@ export const publicEnv = {
 
 /** Server-only config. Never imported into client components. */
 export const serverEnv = {
-  get supabaseServiceRoleKey(): string | undefined {
-    return process.env.SUPABASE_SERVICE_ROLE_KEY || undefined;
-  },
   get livekitUrl(): string | undefined {
     return process.env.LIVEKIT_URL || undefined;
   },
@@ -61,9 +61,13 @@ export const serverEnv = {
   },
 };
 
-/** True when both public Supabase keys are present (needed for auth). */
-export function isSupabaseConfigured(): boolean {
-  return Boolean(publicEnv.supabaseUrl && publicEnv.supabaseAnonKey);
+/** True when the public Firebase web config is present (needed for auth). */
+export function isFirebaseConfigured(): boolean {
+  return Boolean(
+    publicEnv.firebaseApiKey &&
+    publicEnv.firebaseAuthDomain &&
+    publicEnv.firebaseProjectId,
+  );
 }
 
 /** True when LiveKit URL + API credentials are all present. */

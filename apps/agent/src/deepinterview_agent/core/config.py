@@ -112,9 +112,14 @@ class Settings(BaseSettings):
     tavily_api_key: str | None = None
     exa_api_key: str | None = None
 
-    # --- supabase ------------------------------------------------------------
-    supabase_url: str | None = None
-    supabase_service_role_key: str | None = None
+    # --- firebase (Firestore session store) ----------------------------------
+    # Set FIREBASE_PROJECT_ID to persist sessions in Firestore (unset = the
+    # in-memory store). Credentials come from FIREBASE_CREDENTIALS_PATH
+    # (service-account JSON) when set, otherwise Application Default Credentials
+    # (GOOGLE_APPLICATION_CREDENTIALS, or the metadata server on Cloud Run).
+    firebase_project_id: str | None = None
+    firebase_credentials_path: str | None = None
+    firestore_collection: str = "sessions"
 
     # --- livekit -------------------------------------------------------------
     livekit_url: str | None = None

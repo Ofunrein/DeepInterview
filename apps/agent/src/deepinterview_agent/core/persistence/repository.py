@@ -3,9 +3,9 @@
 The :class:`SessionRepository` protocol is the storage contract used by the prep
 and post pipelines. :class:`MemoryRepository` is the default (a process-wide
 singleton so a session written during ``POST /api/prep`` is visible to later
-reads in the same process). :class:`SupabaseRepository` persists to the
-``public.sessions`` table (see ``supabase/migrations/0001_init.sql``) and
-lazy-imports the ``supabase`` SDK.
+reads in the same process). :class:`FirestoreRepository` is the production store: a
+Firebase Firestore ``sessions`` collection, lazy-importing
+``google-cloud-firestore``.
 """
 
 from __future__ import annotations
@@ -59,8 +59,7 @@ class SessionRepository(Protocol):
 class _SessionRow:
     id: str
     status: str = "prep"
-    # Owning user (Supabase auth uid); None for the offline/dev path. Stamped so
-    # the web report's RLS read (auth.uid() = user_id) can see the row.
+    # Owning user (Firebase Auth uid); None for the offline/dev path.
     user_id: str | None = None
     company: str | None = None
     cv_url: str | None = None
@@ -113,7 +112,7 @@ class MemoryRepository:
         row = self._require(session_id)
         row.answers.append(a.model_dump())
         # Persist into the canonical context too, so load_context() sees the
-        # appended answer (mirrors SupabaseRepository).
+        # appended answer (mirrors FirestoreRepository).
         if row.context is not None:
             ctx = InterviewContext.model_validate(row.context)
             ctx.answers.append(a)
@@ -170,37 +169,73 @@ class MemoryRepository:
         return row
 
 
-class SupabaseRepository:
-    """Persist sessions to Supabase ``public.sessions`` (lazy ``supabase`` SDK)."""
+class FirestoreRepository:
+    """Persist sessions to a Firestore ``sessions`` collection (lazy SDK import).
 
-    def __init__(self, url: str, service_role_key: str) -> None:
-        self._url = url
-        self._key = service_role_key
+    One document per session, keyed by ``session_id``. Firestore stores
+    maps/arrays natively, so ``context``/``scorecard``/``transcript`` go in
+    as-is with no JSON encoding.
+
+    Credentials: an explicit service-account JSON path
+    (``FIREBASE_CREDENTIALS_PATH``) when set, otherwise Application Default
+    Credentials (``GOOGLE_APPLICATION_CREDENTIALS``, or the metadata server on
+    Cloud Run / GCE).
+    """
+
+    def __init__(
+        self,
+        project_id: str,
+        credentials_path: str | None = None,
+        collection: str = "sessions",
+    ) -> None:
+        self._project_id = project_id
+        self._credentials_path = credentials_path
+        self._collection_name = collection
         self._client: Any | None = None
 
-    def _table(self) -> Any:
+    # --- client / plumbing ----------------------------------------------------
+    def _get_client(self) -> Any:
         if self._client is None:
             try:
-                from supabase import create_client
+                from google.cloud import firestore
             except ImportError as exc:  # pragma: no cover - depends on optional SDK
                 raise RuntimeError(
-                    "supabase is not installed; install the 'supabase' extra."
+                    "google-cloud-firestore is not installed; install the "
+                    "'firebase' extra (uv sync --extra firebase)."
                 ) from exc
-            self._client = create_client(self._url, self._key)
-        return self._client.table("sessions")
+            if self._credentials_path:
+                self._client = firestore.Client.from_service_account_json(
+                    self._credentials_path, project=self._project_id
+                )
+            else:
+                self._client = firestore.Client(project=self._project_id)
+        return self._client
+
+    def _doc(self, session_id: str) -> Any:
+        return self._get_client().collection(self._collection_name).document(session_id)
 
     async def _exec(self, build: Any) -> Any:
         import asyncio
 
         return await asyncio.to_thread(build)
 
+    async def _read(self, session_id: str) -> dict[str, Any] | None:
+        snap = await self._exec(lambda: self._doc(session_id).get())
+        if not getattr(snap, "exists", False):
+            return None
+        return snap.to_dict() or {}
+
+    async def _update(self, session_id: str, values: dict[str, Any]) -> None:
+        await self._exec(lambda: self._doc(session_id).update(values))
+
+    # --- protocol -------------------------------------------------------------
     async def create_session(self, req: PrepRequest) -> str:
         session_id = _new_session_id()
         payload = {
             "id": session_id,
             "status": "prep",
-            # Stamp the owner so the web report's RLS read (auth.uid() = user_id)
-            # can see this row. None on the offline/dev path (column is nullable).
+            # Owner uid (Firebase Auth) so a hosted read can be scoped per user;
+            # None on the offline/anonymous path.
             "user_id": req.user_id,
             "company": req.company,
             "cv_url": req.cv_url,
@@ -209,36 +244,59 @@ class SupabaseRepository:
             "progress": [],
             "prep_warnings": [],
         }
-        await self._exec(lambda: self._table().insert(payload).execute())
+        await self._exec(lambda: self._doc(session_id).set(payload))
         return session_id
 
     async def save_context(self, session_id: str, ctx: InterviewContext) -> None:
         await self._update(session_id, {"context": ctx.model_dump()})
 
     async def load_context(self, session_id: str) -> InterviewContext | None:
-        def _build() -> Any:
-            return self._table().select("context").eq("id", session_id).limit(1).execute()
-
-        resp = await self._exec(_build)
-        rows = getattr(resp, "data", None) or []
-        if not rows or not rows[0].get("context"):
+        data = await self._read(session_id)
+        if not data or not data.get("context"):
             return None
-        return InterviewContext.model_validate(rows[0]["context"])
+        return InterviewContext.model_validate(data["context"])
 
     async def update_status(self, session_id: str, status: str) -> None:
         await self._update(session_id, {"status": status})
 
     async def append_answer(self, session_id: str, a: AnswerRecord) -> None:
-        def _build() -> Any:
-            return self._table().select("context").eq("id", session_id).limit(1).execute()
+        # Answers are appended INSIDE the context map, so this is a
+        # read-modify-write and must run in a transaction: two turns finishing
+        # close together would otherwise clobber each other and silently drop a
+        # recorded answer.
+        def _apply(snapshot_data: dict[str, Any]) -> dict[str, Any] | None:
+            ctx_data = snapshot_data.get("context")
+            if not ctx_data:
+                return None
+            ctx = InterviewContext.model_validate(ctx_data)
+            ctx.answers.append(a)
+            return {"context": ctx.model_dump()}
 
-        resp = await self._exec(_build)
-        rows = getattr(resp, "data", None) or []
-        if not rows or not rows[0].get("context"):
-            return
-        ctx = InterviewContext.model_validate(rows[0]["context"])
-        ctx.answers.append(a)
-        await self._update(session_id, {"context": ctx.model_dump()})
+        await self._exec(lambda: self._read_modify_write(session_id, _apply))
+
+    def _read_modify_write(
+        self, session_id: str, apply: Any
+    ) -> None:
+        """Run ``apply(doc_data) -> updates | None`` inside a Firestore transaction.
+
+        Separated from :meth:`append_answer` so tests can drive the logic with a
+        fake client; the real transactional decorator lives here only.
+        """
+        from google.cloud import firestore
+
+        client = self._get_client()
+        ref = client.collection(self._collection_name).document(session_id)
+
+        @firestore.transactional
+        def _txn(transaction: Any) -> None:
+            snap = ref.get(transaction=transaction)
+            if not getattr(snap, "exists", False):
+                return
+            updates = apply(snap.to_dict() or {})
+            if updates:
+                transaction.update(ref, updates)
+
+        _txn(client.transaction())
 
     async def save_scorecard(self, session_id: str, sc: ScoreCard) -> None:
         await self._update(session_id, {"scorecard": sc.model_dump()})
@@ -247,28 +305,22 @@ class SupabaseRepository:
         await self._update(session_id, {"transcript": list(turns)})
 
     async def save_coach_transcript(self, session_id: str, turns: list[dict]) -> None:
-        # Requires the coach_transcript column (migration 0004); callers treat
-        # this as best-effort, so a missing column logs rather than crashes.
         await self._update(session_id, {"coach_transcript": list(turns)})
 
     async def mark_progress(self, session_id: str, step: str) -> None:
-        def _build() -> Any:
-            return self._table().select("progress").eq("id", session_id).limit(1).execute()
-
-        resp = await self._exec(_build)
-        rows = getattr(resp, "data", None) or []
-        progress = list(rows[0].get("progress") or []) if rows else []
+        data = await self._read(session_id)
+        if data is None:
+            return
+        progress = list(data.get("progress") or [])
         if step not in progress:
             progress.append(step)
             await self._update(session_id, {"progress": progress})
 
     async def add_warnings(self, session_id: str, warnings: list[str]) -> None:
-        def _build() -> Any:
-            return self._table().select("prep_warnings").eq("id", session_id).limit(1).execute()
-
-        resp = await self._exec(_build)
-        rows = getattr(resp, "data", None) or []
-        existing = list(rows[0].get("prep_warnings") or []) if rows else []
+        data = await self._read(session_id)
+        if data is None:
+            return
+        existing = list(data.get("prep_warnings") or [])
         changed = False
         for w in warnings:
             if w not in existing:
@@ -278,35 +330,19 @@ class SupabaseRepository:
             await self._update(session_id, {"prep_warnings": existing})
 
     async def get_session_view(self, session_id: str) -> SessionView | None:
-        def _build() -> Any:
-            return (
-                self._table()
-                .select("id,status,progress,prep_warnings,context,scorecard")
-                .eq("id", session_id)
-                .limit(1)
-                .execute()
-            )
-
-        resp = await self._exec(_build)
-        rows = getattr(resp, "data", None) or []
-        if not rows:
+        data = await self._read(session_id)
+        if data is None:
             return None
-        row = rows[0]
-        ctx_data = row.get("context")
-        context = InterviewContext.model_validate(ctx_data) if ctx_data else None
-        sc_data = row.get("scorecard")
-        scorecard = ScoreCard.model_validate(sc_data) if sc_data else None
+        ctx_data = data.get("context")
+        sc_data = data.get("scorecard")
         return SessionView(
-            session_id=row["id"],
-            status=row.get("status", "prep"),
-            progress=list(row.get("progress") or []),
-            prep_warnings=list(row.get("prep_warnings") or []),
-            context=context,
-            scorecard=scorecard,
+            session_id=data.get("id", session_id),
+            status=data.get("status", "prep"),
+            progress=list(data.get("progress") or []),
+            prep_warnings=list(data.get("prep_warnings") or []),
+            context=InterviewContext.model_validate(ctx_data) if ctx_data else None,
+            scorecard=ScoreCard.model_validate(sc_data) if sc_data else None,
         )
-
-    async def _update(self, session_id: str, values: dict[str, Any]) -> None:
-        await self._exec(lambda: self._table().update(values).eq("id", session_id).execute())
 
 
 # Module-wide singleton so MemoryRepository state survives across build_deps() calls.
@@ -314,15 +350,20 @@ _MEMORY_REPO = MemoryRepository()
 
 
 def get_repository(settings: Settings) -> SessionRepository:
-    """Return a repository: Supabase if fully configured, else the memory singleton."""
-    if settings.supabase_url and settings.supabase_service_role_key:
-        return SupabaseRepository(settings.supabase_url, settings.supabase_service_role_key)
-    if settings.supabase_url or settings.supabase_service_role_key:
-        # Half-configured Supabase is almost always a deployment mistake; say so
-        # loudly instead of silently dropping every session into process memory.
+    """Return the Firestore repository when configured, else the memory singleton."""
+    if settings.firebase_project_id:
+        return FirestoreRepository(
+            settings.firebase_project_id,
+            settings.firebase_credentials_path,
+            settings.firestore_collection,
+        )
+    if settings.firebase_credentials_path:
+        # Credentials without a project id can never build a client; that is
+        # almost always a deployment mistake, so say so loudly instead of
+        # silently dropping every session into process memory.
         log.error(
-            "Supabase is PARTIALLY configured (need BOTH SUPABASE_URL and "
-            "SUPABASE_SERVICE_ROLE_KEY); falling back to the in-memory store — "
-            "sessions will NOT survive a restart."
+            "Firebase is PARTIALLY configured (FIREBASE_CREDENTIALS_PATH is set "
+            "but FIREBASE_PROJECT_ID is missing); falling back to the in-memory "
+            "store — sessions will NOT survive a restart."
         )
     return _MEMORY_REPO

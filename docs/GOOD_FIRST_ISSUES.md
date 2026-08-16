@@ -124,17 +124,17 @@ green.
 ### 7. 🟠 Add `GET /api/session/[id]` so the report reads live data
 
 **Problem.** `apps/web/app/report/[id]/page.tsx` reads the `sessions` row
-directly from Supabase and falls back to sample data offline. There is no
+directly from Firestore and falls back to sample data offline. There is no
 `GET /api/session/[id]` route, which makes the session payload hard to fetch
 from elsewhere (e.g. polling, the CLI, or a future client). Add one.
 
 **Files.** new `apps/web/app/api/session/[id]/route.ts`,
-`apps/web/lib/supabase/server.ts` (reuse the client), optionally refactor
+`apps/web/lib/firebase/server.ts` (reuse the helper), optionally refactor
 `report/[id]/page.tsx` to consume it.
 
 **Acceptance.** `GET /api/session/[id]` returns the session's `scorecard` +
 `context` (zod-validated) for an authorized user, 404 on miss, and a safe
-offline response when Supabase is unconfigured (mirroring the page's
+offline response when Firebase is unconfigured (mirroring the page's
 sample-fallback behavior). RLS/authorization respected — a user can only read
 their own session. `pnpm typecheck` green.
 

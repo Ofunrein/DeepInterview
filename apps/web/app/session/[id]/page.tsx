@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  * "what we found" bento.
  *
  * Next 15: `params`/`searchParams` are Promises — await them. Page-level auth:
- * when Supabase is configured and there's no user, redirect to /login; offline
+ * when Firebase is configured and there's no user, redirect to /login; offline
  * (dev) we proceed without auth.
  */
 export default async function SessionPage({

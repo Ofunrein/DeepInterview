@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { gateRequest } from "@deepinterview/ee";
 import { presignUpload } from "@/lib/r2";
-import { isR2Configured, isSupabaseConfigured } from "@/lib/env";
-import { getUser } from "@/lib/supabase/server";
+import { isR2Configured, isFirebaseConfigured } from "@/lib/env";
+import { getUser } from "@/lib/firebase/server";
 
 // CV uploads only. Allowlist the document types the prep extractor can read
 // (markitdown handles PDF/DOCX); reject everything else so the bucket can't be
@@ -32,11 +32,11 @@ const BodySchema = z.object({
 
 export async function POST(request: Request) {
   // Presigned uploads cost storage and are a classic abuse target. When
-  // Supabase is configured (hosted), require a signed-in user — mirroring the
+  // Firebase is configured (hosted), require a signed-in user — mirroring the
   // interview token path — before handing out a PUT URL. The distribution gate
   // (no-op in OSS) adds the required-auth check for closed distributions.
   const user = await getUser();
-  if (isSupabaseConfigured() && !user) {
+  if (isFirebaseConfigured() && !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const gate = gateRequest({

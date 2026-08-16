@@ -609,7 +609,7 @@ async def _load_context_via_api(session_id: str, settings) -> InterviewContext |
 
     The worker runs in a SEPARATE process from the API (``cli.run_app`` spawns its
     own job process), so the in-memory repo is not shared. Read the context from
-    the API's ``GET /api/session/{id}`` SessionView instead. (With Supabase
+    the API's ``GET /api/session/{id}`` SessionView instead. (With Firestore
     configured both processes share the store and either path works.)
     """
     import httpx
@@ -708,11 +708,11 @@ async def entrypoint(ctx: JobContext) -> None:
     async def _persist_via_api(has_answers: bool) -> bool:
         """Persist the live result through the API process.
 
-        The worker runs in a SEPARATE process: with no Supabase configured the
+        The worker runs in a SEPARATE process: with no Firestore configured the
         API's in-memory repo is the canonical store, so writing through our own
         ``deps.repo`` would land in a repo nobody reads (answers lost, never
         scored). POST the result to the API instead; direct repo writes below
-        are the fallback for shared-store (Supabase) deployments.
+        are the fallback for shared-store (Firestore) deployments.
         """
         import httpx
 
@@ -761,7 +761,7 @@ async def entrypoint(ctx: JobContext) -> None:
     )
 
     async def _persist_via_repo(has_answers: bool) -> bool:
-        """Direct-store fallback (correct when both processes share Supabase)."""
+        """Direct-store fallback (correct when both processes share Firestore)."""
         try:
             await deps.repo.save_transcript(session_id, userdata.transcript)
         except Exception:

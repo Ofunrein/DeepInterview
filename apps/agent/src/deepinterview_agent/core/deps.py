@@ -39,7 +39,7 @@ def _assemble(settings: Settings) -> Deps:
 
 
 # Cached default bundle: API routes call build_deps() per request, and without
-# this every request rebuilt every adapter INCLUDING a fresh Supabase client
+# this every request rebuilt every adapter INCLUDING a fresh Firestore client
 # (new HTTP connection pool per request). Keyed on the get_settings() instance
 # so clearing the settings cache (tests) transparently invalidates this too.
 _default_deps: Deps | None = None

@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import {
   isLiveKitConfigured,
-  isSupabaseConfigured,
+  isFirebaseConfigured,
   serverEnv,
 } from "@/lib/env";
-import { getUser } from "@/lib/supabase/server";
+import { getUser } from "@/lib/firebase/server";
 import { createInterviewToken } from "@/lib/livekit";
 import { getPersona } from "@/lib/personas";
 import { SessionViewSchema, type SessionView } from "@/lib/session";
@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * Live interview screen (WP-2). Server component.
  *
  * Next 15: `params`/`searchParams` are Promises — await them. Page-level auth:
- * when Supabase is configured and there's no user, we still proceed — OSS runs
+ * when Firebase is configured and there's no user, we still proceed — OSS runs
  * with no sign-in, and the unguessable session id IS the capability (see below).
  *
  * Token: minted server-side via `createInterviewToken` behind an
@@ -67,14 +67,11 @@ export default async function InterviewPage({
 
   // No auth gate (OSS): an anonymous visitor joins with a session-scoped dev
   // identity. When a user IS signed in (hosted) we use their real identity.
-  if (isSupabaseConfigured()) {
+  if (isFirebaseConfigured()) {
     const user = await getUser();
     if (user) {
       identity = user.id;
-      name =
-        (user.user_metadata?.name as string | undefined) ??
-        user.email ??
-        undefined;
+      name = user.name ?? user.email ?? undefined;
     }
   }
 

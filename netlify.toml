@@ -1,0 +1,30 @@
+# Netlify build for the Next.js web app in a pnpm/turbo monorepo.
+#
+# No `base`: the build runs from the workspace root so pnpm can resolve the
+# workspace and turbo can build the two packages apps/web imports
+# (@deepinterview/shared, @deepinterview/ee). `publish` therefore points at the
+# app's build output by its root-relative path, which is also what the Next.js
+# plugin uses to locate the app.
+#
+# The agent API is NOT deployed here — Netlify hosts the frontend only. Point
+# AGENT_API_URL at wherever the FastAPI service runs (Cloud Run, Fly, a VM);
+# without it the prep/report screens degrade to their offline states.
+
+[build]
+  command = "pnpm build --filter @deepinterview/web..."
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "11"
+  TURBO_TELEMETRY_DISABLED = "1"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Long-cache the immutable, fingerprinted build assets; per-route headers are
+# left to the Next.js runtime.
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

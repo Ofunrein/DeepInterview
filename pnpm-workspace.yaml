@@ -9,3 +9,17 @@ packages:
 allowBuilds:
   esbuild: true
   sharp: true
+  # Firebase/protobuf postinstalls only wire up optional native/CLI extras the
+  # web SDK never touches at runtime, so they stay unapproved.
+  '@firebase/util': false
+  protobufjs: false
+
+# Supply-chain trust policy (`trustPolicy: no-downgrade`) flags chokidar@4.0.3
+# as a possible takeover. Verified benign 2026-08-16: the lockfile integrity
+# (sha512-Qgzu8kfBvo+…SMGtnA==) matches the canonical registry.npmjs.org
+# artifact, published and signed by the real maintainer (paulmillr); the
+# downgrade signal is publisher metadata missing on a mirrored registry, not a
+# republished package. Pinned to this exact version so any OTHER downgrade
+# still fails the install.
+trustPolicyExclude:
+  - chokidar@4.0.3

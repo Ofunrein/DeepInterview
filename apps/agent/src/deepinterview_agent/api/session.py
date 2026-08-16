@@ -6,7 +6,7 @@ Unknown ids → 404.
 
 ``POST /api/session/{id}/live-result`` is the INTERNAL write path the voice
 worker uses at shutdown. The worker runs in a separate process, so with no
-Supabase configured its own in-memory repo is invisible to the API — answers
+Firestore configured its own in-memory repo is invisible to the API — answers
 would be lost and never scored. Writing through this endpoint lands the result
 in the store the API actually reads. (Like every route, it is session-id
 capability-guarded: ids are unguessable uuid4.)

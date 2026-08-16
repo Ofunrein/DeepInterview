@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { createBrowserClient } from "@/lib/supabase/client";
-import { publicEnv } from "@/lib/env";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+} from "firebase/auth";
+import { createBrowserAuth, syncSessionCookie } from "@/lib/firebase/client";
 import { useMessages } from "@/lib/i18n/client";
 import { t } from "@/lib/i18n";
 import {
@@ -23,37 +26,31 @@ import { Spinner } from "@/components/ui/spinner";
 export default function SignupPage() {
   const router = useRouter();
   const messages = useMessages();
-  const supabase = useMemo(() => createBrowserClient(), []);
+  const auth = useMemo(() => createBrowserAuth(), []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmSent, setConfirmSent] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!supabase) return;
+    if (!auth) return;
     setBusy(true);
     setError(null);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: `${publicEnv.appUrl}/auth/callback` },
-    });
-    if (error) {
-      setError(error.message);
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      // Firebase signs the new account in immediately, so the session is live
+      // and setup can proceed; the verification mail is informational (this
+      // build does not gate on a verified address).
+      await syncSessionCookie(await cred.user.getIdToken());
+      void sendEmailVerification(cred.user).catch(() => {});
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sign up.");
       setBusy(false);
       return;
     }
-    // With email confirmation on there's no session yet — tell the user to
-    // confirm. When confirmation is disabled a session exists → go to setup.
-    if (data.session) {
-      router.push("/setup");
-      return;
-    }
-    setConfirmSent(true);
-    setBusy(false);
+    router.push("/setup");
   }
 
   return (
@@ -67,15 +64,11 @@ export default function SignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="pb-6">
-          {!supabase ? (
+          {!auth ? (
             <DevModeNotice
               notice={t(messages, "auth.devNotice")}
               cta={t(messages, "auth.devContinue")}
             />
-          ) : confirmSent ? (
-            <p className="rounded-[10px] border border-line bg-accent-soft px-3.5 py-3 text-[13px] text-ink-soft">
-              {t(messages, "auth.checkEmail")}
-            </p>
           ) : (
             <form onSubmit={onSubmit} className="flex flex-col gap-4">
               <div>

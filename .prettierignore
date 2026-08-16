@@ -1,0 +1,3 @@
+# Netlify CLI build output — generated, includes vendored third-party code.
+.netlify/
+apps/*/.netlify/

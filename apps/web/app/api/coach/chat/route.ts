@@ -7,7 +7,7 @@ import {
 } from "@deepinterview/shared";
 import { gateRequest } from "@deepinterview/ee";
 import { serverEnv } from "@/lib/env";
-import { getUser } from "@/lib/supabase/server";
+import { getUser } from "@/lib/firebase/server";
 
 // Reads server-only config (AGENT_API_URL) and proxies a live agent call.
 export const dynamic = "force-dynamic";
