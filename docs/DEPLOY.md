@@ -38,7 +38,7 @@ Region is pinned in:
 | Component        | Where it runs                                   | Port | Health     |
 | ---------------- | ----------------------------------------------- | ---- | ---------- |
 | **web** (Next)   | Netlify (`deepinterview-mf`) — or the `web` container | 3000 | `/api/health` |
-| **agent-api**    | Cloud Run `us-central1` (scale-to-zero) — FastAPI prep/score | 8000 | `/health`  |
+| **agent-api**    | Local / docker-compose only (Spark — no Cloud Run) | 8000 | `/health`  |
 | **agent-worker** | LiveKit Cloud Agents **SGP** (live voice loop)  | —    | LiveKit Cloud |
 | **lightrag**     | Container (`sin`) — knowledge sidecar           | 9621 | `/health`  |
 | **Firebase**     | Managed (`nam5`) — Firestore/Auth                  | —  | managed    |
@@ -110,38 +110,21 @@ Jobs:
 
 ### Web on Netlify
 
-`netlify.toml` builds `@deepinterview/web...` from the workspace root. Set
-`AGENT_API_URL` to the Cloud Run URL below so prep/report proxy to the live
-API. Frontend: https://deepinterview-mf.netlify.app
+`netlify.toml` builds `@deepinterview/web...` from the workspace root.
+Frontend: https://deepinterview-mf.netlify.app
 
-### Agent API on Cloud Run (Ofunrein fork)
+Prep/report proxy to `AGENT_API_URL` when that process is running locally
+(`docker compose up` or `uv run` in `apps/agent`). This fork stays on Firebase
+**Spark** (no billing account). Cloud Run / Artifact Registry / Cloud Build all
+require Blaze, so the agent API is **not** hosted. Relink billing only if you
+explicitly want a paid API.
 
-Firestore is `nam5`, so the API sits in `us-central1` (not Singapore) to keep
-session reads in-region. Image is `apps/agent/Dockerfile` target `api` only —
-the LiveKit worker is a separate long-running process and is not hosted here.
+Python deps resolve from public PyPI (`[[tool.uv.index]]` in `apps/agent` and
+`services/lightrag`). `uv.lock` must not contain `pypi.apple.com`; CI fails if
+it does. Do not `uv lock` against Apple's internal mirror.
 
-```bash
-# one-time: enable APIs + Artifact Registry, then:
-gcloud builds submit --config cloudbuild.agent-api.yaml \
-  --project deepinterview-mf-2026 --substitutions=_TAG=latest
-
-gcloud run deploy deepinterview-agent-api \
-  --image us-central1-docker.pkg.dev/deepinterview-mf-2026/deepinterview/agent-api:latest \
-  --project deepinterview-mf-2026 --region us-central1 \
-  --allow-unauthenticated --min-instances 0 --max-instances 2 \
-  --memory 1Gi --cpu 1 --timeout 300 --port 8000 \
-  --env-vars-file /path/to/agent-env.yaml
-```
-
-Live URL: `https://deepinterview-agent-api-63z53xgx3a-uc.a.run.app`  
-Health: `GET /health` → `{"ok": true}`  
-Writes are gated by `INTERNAL_API_SECRET` (same value on Netlify). Budget alert
-`deepinterview-mf-2026-1usd` fires at $1 on billing account `My Billing Account 2`.
-
-The agent `uv.lock` is generated against Apple's internal PyPI mirror. The
-Dockerfile rewrites those URLs to public PyPI at build time so Cloud Build can
-fetch wheels. Do not regenerate the lock on this Mac if you want Apple-local
-`uv sync` to keep working.
+`cloudbuild.agent-api.yaml` is leftover for a future Blaze deploy and is unused
+on Spark.
 
 ---
 

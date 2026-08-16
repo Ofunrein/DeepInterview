@@ -35,6 +35,13 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Lockfiles must use public PyPI
+        run: |
+          if grep -R -n -E 'pypi\.apple\.com' --include='uv.lock' .; then
+            echo "Apple-internal package index leaked into a uv.lock" >&2
+            exit 1
+          fi
+
       - name: Install JS deps
         run: pnpm install
 

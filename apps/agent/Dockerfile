@@ -33,16 +33,6 @@ WORKDIR /app
 # one-line src change re-downloaded the turn-detector weights (minutes).
 COPY apps/agent/pyproject.toml apps/agent/uv.lock ./
 
-# Lockfile was generated against Apple's internal PyPI mirror. Rewrite those
-# URLs so Cloud Build / any non-Apple host can fetch wheels from public PyPI.
-# Hashes stay the same; only the host path changes.
-RUN sed -i \
-      -e 's|https://pypi.apple.com/simple|https://pypi.org/simple|g' \
-      -e 's|https://pypi.apple.com/packages/packages/|https://files.pythonhosted.org/packages/|g' \
-      uv.lock
-ENV UV_DEFAULT_INDEX=https://pypi.org/simple \
-    UV_INDEX_URL=https://pypi.org/simple
-
 # Base deps + the lightweight provider SDKs (gemini/openai/firebase/tavily).
 # Without them, setting e.g. FIREBASE_PROJECT_ID or LLM_PROVIDER=gemini in .env makes
 # the API 500 (ModuleNotFoundError) instead of using the configured provider —

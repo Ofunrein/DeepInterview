@@ -60,6 +60,15 @@ dev = ["pytest>=9", "ruff>=0.15"]
 [tool.uv]
 package = true
 
+# Always resolve against public PyPI. This Mac's default uv index is an
+# Apple-internal mirror, which produces a lockfile Cloud Build and GitHub
+# Actions cannot fetch. Pinning here is the durable fix — do not lock
+# against that mirror.
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
