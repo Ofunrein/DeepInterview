@@ -37,11 +37,11 @@ Region is pinned in:
 
 | Component        | Where it runs                                   | Port | Health     |
 | ---------------- | ----------------------------------------------- | ---- | ---------- |
-| **web** (Next)   | Vercel (`sin1`) — or the `web` container        | 3000 | `/api/health` |
-| **agent-api**    | Container (Render/Fly `sin`) — FastAPI prep/score | 8000 | `/health`  |
+| **web** (Next)   | Netlify (`deepinterview-mf`) — or the `web` container | 3000 | `/api/health` |
+| **agent-api**    | Cloud Run `us-central1` (scale-to-zero) — FastAPI prep/score | 8000 | `/health`  |
 | **agent-worker** | LiveKit Cloud Agents **SGP** (live voice loop)  | —    | LiveKit Cloud |
 | **lightrag**     | Container (`sin`) — knowledge sidecar           | 9621 | `/health`  |
-| **Firebase**     | Managed (`asia-southeast1`) — Firestore/Auth       | —  | managed    |
+| **Firebase**     | Managed (`nam5`) — Firestore/Auth                  | —  | managed    |
 | **R2**           | Cloudflare (global) — CV files + recordings     | —    | managed    |
 
 The agent ships as **one image, two run modes** (`apps/agent/Dockerfile`):
@@ -108,13 +108,40 @@ Jobs:
    `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Remember the worker variant must be
    built with `--extra livekit`.
 
-### Web on Vercel
+### Web on Netlify
 
-`vercel.json` sets `framework: nextjs`, `regions: [sin1]`,
-`installCommand: pnpm install --frozen-lockfile`, and
-`buildCommand: pnpm build --filter @deepinterview/web...` (the trailing `...`
-builds the `@deepinterview/shared` workspace dependency first), with
-`outputDirectory: apps/web/.next`.
+`netlify.toml` builds `@deepinterview/web...` from the workspace root. Set
+`AGENT_API_URL` to the Cloud Run URL below so prep/report proxy to the live
+API. Frontend: https://deepinterview-mf.netlify.app
+
+### Agent API on Cloud Run (Ofunrein fork)
+
+Firestore is `nam5`, so the API sits in `us-central1` (not Singapore) to keep
+session reads in-region. Image is `apps/agent/Dockerfile` target `api` only —
+the LiveKit worker is a separate long-running process and is not hosted here.
+
+```bash
+# one-time: enable APIs + Artifact Registry, then:
+gcloud builds submit --config cloudbuild.agent-api.yaml \
+  --project deepinterview-mf-2026 --substitutions=_TAG=latest
+
+gcloud run deploy deepinterview-agent-api \
+  --image us-central1-docker.pkg.dev/deepinterview-mf-2026/deepinterview/agent-api:latest \
+  --project deepinterview-mf-2026 --region us-central1 \
+  --allow-unauthenticated --min-instances 0 --max-instances 2 \
+  --memory 1Gi --cpu 1 --timeout 300 --port 8000 \
+  --env-vars-file /path/to/agent-env.yaml
+```
+
+Live URL: `https://deepinterview-agent-api-63z53xgx3a-uc.a.run.app`  
+Health: `GET /health` → `{"ok": true}`  
+Writes are gated by `INTERNAL_API_SECRET` (same value on Netlify). Budget alert
+`deepinterview-mf-2026-1usd` fires at $1 on billing account `My Billing Account 2`.
+
+The agent `uv.lock` is generated against Apple's internal PyPI mirror. The
+Dockerfile rewrites those URLs to public PyPI at build time so Cloud Build can
+fetch wheels. Do not regenerate the lock on this Mac if you want Apple-local
+`uv sync` to keep working.
 
 ---
 

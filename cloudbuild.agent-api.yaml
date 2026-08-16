@@ -1,0 +1,29 @@
+# Build the FastAPI agent-api image only (Dockerfile target `api`).
+# Worker is a separate long-running LiveKit process — not this image.
+#
+#   gcloud builds submit --config cloudbuild.agent-api.yaml \
+#     --project deepinterview-mf-2026 --substitutions=_TAG=latest
+
+substitutions:
+  _AR_REGION: us-central1
+  _AR_REPO: deepinterview
+  _SERVICE: agent-api
+  _TAG: latest
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_AR_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${_TAG}
+      - -f
+      - apps/agent/Dockerfile
+      - --target
+      - api
+      - .
+
+images:
+  - ${_AR_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${_TAG}
+
+options:
+  logging: CLOUD_LOGGING_ONLY
