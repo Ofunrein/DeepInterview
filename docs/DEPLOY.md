@@ -38,7 +38,7 @@ Region is pinned in:
 | Component        | Where it runs                                   | Port | Health     |
 | ---------------- | ----------------------------------------------- | ---- | ---------- |
 | **web** (Next)   | Netlify (`deepinterview-mf`) — or the `web` container | 3000 | `/api/health` |
-| **agent-api**    | Local / docker-compose only (Spark — no Cloud Run) | 8000 | `/health`  |
+| **agent-api**    | Render free web service (`apps/agent` FastAPI) | $PORT | `/health`  |
 | **agent-worker** | LiveKit Cloud Agents **SGP** (live voice loop)  | —    | LiveKit Cloud |
 | **lightrag**     | Container (`sin`) — knowledge sidecar           | 9621 | `/health`  |
 | **Firebase**     | Managed (`nam5`) — Firestore/Auth                  | —  | managed    |
@@ -113,18 +113,26 @@ Jobs:
 `netlify.toml` builds `@deepinterview/web...` from the workspace root.
 Frontend: https://deepinterview-mf.netlify.app
 
-Prep/report proxy to `AGENT_API_URL` when that process is running locally
-(`docker compose up` or `uv run` in `apps/agent`). This fork stays on Firebase
-**Spark** (no billing account). Cloud Run / Artifact Registry / Cloud Build all
-require Blaze, so the agent API is **not** hosted. Relink billing only if you
-explicitly want a paid API.
+Prep/report proxy to `AGENT_API_URL` (Render free web service for this fork,
+or `docker compose` / `uv run` locally). Firebase stays on **Spark** (no GCP
+billing account). Do not relink Cloud Billing — Cloud Run / Artifact Registry /
+Cloud Build require Blaze.
+
+### Agent API on Render (free)
+
+Created via the Render API in **Martin's workspace**, plan `free`, no disk,
+no database, no autoscaling. Repo `Ofunrein/DeepInterview` branch `main`,
+`rootDir` `apps/agent`:
+
+- build: `pip install uv && uv sync --frozen --no-dev --extra gemini --extra openai --extra firebase --extra tavily`
+- start: `sh scripts/render_start.sh` (honors `$PORT`; optional `FIREBASE_CREDENTIALS_JSON` → Firestore)
+- health: `GET /health`
 
 Python deps resolve from public PyPI (`[[tool.uv.index]]` in `apps/agent` and
-`services/lightrag`). `uv.lock` must not contain `pypi.apple.com`; CI fails if
-it does. Do not `uv lock` against Apple's internal mirror.
+`services/lightrag`). `uv.lock` must not contain Apple-internal indexes; CI
+fails if it does.
 
-`cloudbuild.agent-api.yaml` is leftover for a future Blaze deploy and is unused
-on Spark.
+`cloudbuild.agent-api.yaml` is unused leftover.
 
 ---
 

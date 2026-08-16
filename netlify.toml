@@ -7,7 +7,7 @@
 # plugin uses to locate the app.
 #
 # The agent API is NOT deployed here — Netlify hosts the frontend only. Point
-# AGENT_API_URL at wherever the FastAPI service runs (Cloud Run, Fly, a VM);
+# AGENT_API_URL at wherever the FastAPI service runs (Render free, Cloud Run, a VM);
 # without it the prep/report screens degrade to their offline states.
 
 [build]
