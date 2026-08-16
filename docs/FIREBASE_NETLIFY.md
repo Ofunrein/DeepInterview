@@ -61,29 +61,50 @@ Environment variables to set on the site:
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | browser auth |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | browser auth |
 
-## Auth: one manual step remains
+## Auth
 
-Sign-in is wired end to end (email/password via the Firebase browser SDK → ID
-token → httpOnly cookie → server-side verification through Identity Toolkit),
-but the **email/password provider is not enabled on the project yet**. Enabling
-it via the API (`identityPlatform:initializeAuth`) returns:
+Both providers are **enabled** on this project (verified by reading the Identity
+Toolkit admin config, not the console UI):
 
-```
-BILLING_NOT_ENABLED : Identity Platform feature requires billing to be enabled.
-```
+| Provider | State |
+| --- | --- |
+| Email/Password | enabled, password required |
+| Google (`google.com`) | enabled, OAuth client auto-created in this project |
 
-Two ways forward:
+Authorized domains: `localhost`, `deepinterview-mf-2026.firebaseapp.com`,
+`deepinterview-mf-2026.web.app`, `deepinterview-mf.netlify.app`. Add any new
+deploy origin here or the Google popup will refuse it.
 
-1. Enable **Authentication → Sign-in method → Email/Password** once in the
-   Firebase console (free tier, no billing needed), or
-2. attach an open billing account and re-run the API call.
+Enabling these through the API is NOT possible on the free plan:
+`identityPlatform:initializeAuth` returns `BILLING_NOT_ENABLED`, because that
+endpoint provisions Identity Platform (GCIP), not Firebase Auth. Firebase Auth
+itself is free on Spark and is initialized by the console's own flow. Once the
+console has initialized it, the admin API works normally — that is how the
+Google IdP and the authorized-domain list above were verified and edited.
 
-Until then, leave the three `NEXT_PUBLIC_FIREBASE_*` variables **unset**: the app
-runs its anonymous path (no sign-in required), which is the OSS default. Setting
-them earlier would render a sign-in form that cannot succeed.
+Sign-in design: the browser SDK holds the session; the ID token is mirrored into
+an httpOnly cookie via `/api/auth/session` and verified server-side through
+Identity Toolkit's `accounts:lookup`. No Admin SDK and no service-account
+credentials on the frontend, so Netlify needs no privileged key, and the check
+works in the edge runtime — the proxy can fail closed on a forged or expired
+cookie. `components/firebase-session-sync.tsx` re-posts refreshed tokens so a
+one-hour session does not silently expire. See
+`apps/web/lib/firebase/server.ts` for the documented upgrade path (local JWT
+verification against Google's cached certs) if the per-request round-trip ever
+shows up in page latency.
 
-The auth design uses no Admin SDK on the frontend — tokens are verified against
-Identity Toolkit, so Netlify needs no service-account credentials. See
-`apps/web/lib/firebase/server.ts` for the verification helper and its documented
-upgrade path (local JWT verification against Google's cached certs) if the
-per-request round-trip ever shows up in page latency.
+## Voice stack
+
+| Stage | Provider | Notes |
+| --- | --- | --- |
+| Transport | LiveKit Cloud | `LIVEKIT_URL` / key / secret |
+| STT | Deepgram nova-3 | `STT_PROVIDER=deepgram` |
+| TTS | Deepgram Aura-2 | `TTS_PROVIDER=deepgram`; de/en/es/fr/it/ja/nl only — vi/zh/ko fall through to ElevenLabs, then Gemini |
+| LLM (live) | `gemini-3.5-flash-lite` | cheapest Flash tier, drives the real-time interviewer |
+| LLM (prep/score) | `gemini-3.6-flash` | off the turn-critical path |
+| Research | Tavily | `SEARCH_PROVIDER=tavily`; Exa key also present |
+
+The LiveKit **CLI** is not installed on this machine: it is AGPL-3.0 and the
+managed Homebrew wrapper refuses it under Apple's open-source policy. Nothing
+depends on it — the Python SDK (`uv sync --extra livekit`) is what the worker
+uses.
