@@ -54,6 +54,8 @@ export const vi: Localized<Messages> = {
     toLogin: "Đăng nhập",
     checkEmail: "Kiểm tra email để xác nhận tài khoản, sau đó đăng nhập.",
     devNotice: "Chưa cấu hình đăng nhập — tiếp tục ở chế độ dev.",
+    continueWithGoogle: "Tiếp tục với Google",
+    googleFailed: "Đăng nhập Google chưa hoàn tất.",
     devContinue: "Tiếp tục đến thiết lập",
   },
   setup: {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { createBrowserAuth, syncSessionCookie } from "@/lib/firebase/client";
+import { GoogleSignInButton } from "@/components/google-signin-button";
 import { useMessages } from "@/lib/i18n/client";
 import { t } from "@/lib/i18n";
 import {
@@ -81,45 +82,66 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent className="pb-6">
           {auth ? (
-            <form onSubmit={onSubmit} className="flex flex-col gap-4">
-              <div>
-                <Label htmlFor="email">{t(messages, "auth.emailLabel")}</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+            <>
+              <GoogleSignInButton
+                auth={auth}
+                label={t(messages, "auth.continueWithGoogle")}
+                failedLabel={t(messages, "auth.googleFailed")}
+                onDone={() =>
+                  router.push(
+                    safeNext(
+                      new URLSearchParams(window.location.search).get("next"),
+                    ),
+                  )
+                }
+              />
+              <div className="my-4 flex items-center gap-3 text-[12px] text-muted">
+                <span className="h-px flex-1 bg-line" />
+                or
+                <span className="h-px flex-1 bg-line" />
               </div>
-              <div>
-                <Label htmlFor="password">
-                  {t(messages, "auth.passwordLabel")}
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              {error && (
-                <p className="text-[13px] text-ink-soft" role="alert">
-                  {error}
+              <form onSubmit={onSubmit} className="flex flex-col gap-4">
+                <div>
+                  <Label htmlFor="email">
+                    {t(messages, "auth.emailLabel")}
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="password">
+                    {t(messages, "auth.passwordLabel")}
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+                {error && (
+                  <p className="text-[13px] text-ink-soft" role="alert">
+                    {error}
+                  </p>
+                )}
+                <Button type="submit" size="lg" disabled={busy}>
+                  {busy && <Spinner className="text-white" />}
+                  {t(messages, "auth.signIn")}
+                </Button>
+                <p className="text-[13px] text-muted">
+                  {t(messages, "auth.noAccount")}{" "}
+                  <Link href="/signup">{t(messages, "auth.toSignup")}</Link>
                 </p>
-              )}
-              <Button type="submit" size="lg" disabled={busy}>
-                {busy && <Spinner className="text-white" />}
-                {t(messages, "auth.signIn")}
-              </Button>
-              <p className="text-[13px] text-muted">
-                {t(messages, "auth.noAccount")}{" "}
-                <Link href="/signup">{t(messages, "auth.toSignup")}</Link>
-              </p>
-            </form>
+              </form>
+            </>
           ) : (
             <DevModeNotice
               notice={t(messages, "auth.devNotice")}

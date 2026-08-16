@@ -38,6 +38,8 @@ export const en = {
     toLogin: "Sign in",
     checkEmail: "Check your email to confirm your account, then sign in.",
     devNotice: "Auth not configured — continuing in dev mode.",
+    continueWithGoogle: "Continue with Google",
+    googleFailed: "Google sign-in did not complete.",
     devContinue: "Continue to setup",
   },
   setup: {
