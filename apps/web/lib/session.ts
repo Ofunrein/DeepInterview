@@ -65,7 +65,7 @@ export const PREP_STEPS: readonly PrepStep[] = [
 ] as const;
 
 /** Consecutive 404s before an unknown session is declared `not_found`. */
-const NOT_FOUND_AFTER = 3;
+const NOT_FOUND_AFTER = 2;
 
 /** Overall polling deadline; past it a still-pending session is `stalled`. */
 const POLL_DEADLINE_MS = 15 * 60 * 1000;

@@ -8,6 +8,7 @@ import {
   sendEmailVerification,
 } from "firebase/auth";
 import { createBrowserAuth, syncSessionCookie } from "@/lib/firebase/client";
+import { GoogleSignInButton } from "@/components/google-signin-button";
 import { useMessages } from "@/lib/i18n/client";
 import { t } from "@/lib/i18n";
 import {
@@ -70,7 +71,19 @@ export default function SignupPage() {
               cta={t(messages, "auth.devContinue")}
             />
           ) : (
-            <form onSubmit={onSubmit} className="flex flex-col gap-4">
+            <>
+              <GoogleSignInButton
+                auth={auth}
+                label={t(messages, "auth.continueWithGoogle")}
+                failedLabel={t(messages, "auth.googleFailed")}
+                onDone={() => router.push("/setup")}
+              />
+              <div className="my-4 flex items-center gap-3 text-[12px] text-muted">
+                <span className="h-px flex-1 bg-line" />
+                or
+                <span className="h-px flex-1 bg-line" />
+              </div>
+              <form onSubmit={onSubmit} className="flex flex-col gap-4">
               <div>
                 <Label htmlFor="email">{t(messages, "auth.emailLabel")}</Label>
                 <Input
@@ -110,6 +123,7 @@ export default function SignupPage() {
                 <Link href="/login">{t(messages, "auth.toLogin")}</Link>
               </p>
             </form>
+            </>
           )}
         </CardContent>
       </Card>

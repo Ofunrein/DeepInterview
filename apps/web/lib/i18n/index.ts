@@ -1,14 +1,17 @@
 import { en, type Messages } from "./messages/en";
+import { vi } from "./messages/vi";
 
 /** Supported UI locales. English-first; more packs plug in here. */
 export type Locale = "en" | "vi";
 
 export const DEFAULT_LOCALE: Locale = "en";
 
+/** Browser event so client islands re-read the locale cookie without a remount. */
+export const LOCALE_CHANGE_EVENT = "di-locale-change";
+
 const dictionaries: Record<Locale, Messages> = {
   en,
-  // English-only for now; `vi` falls back to `en` until a pack lands.
-  vi: en,
+  vi: vi as unknown as Messages,
 };
 
 /** Resolve the message dictionary for a locale (defaults to English). */

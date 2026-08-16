@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   // production Docker image is a slim `node server.js` with no node_modules
   // install at runtime. Additive — does not affect `next dev` / `next start`.
   output: "standalone",
+  async rewrites() {
+    return [{ source: "/favicon.ico", destination: "/icon.svg" }];
+  },
 };
 
 export default nextConfig;

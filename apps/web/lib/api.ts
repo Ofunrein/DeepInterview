@@ -25,6 +25,7 @@ async function postJson<T>(
     },
     body: JSON.stringify(body),
     cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
   });
 
   if (!res.ok) {

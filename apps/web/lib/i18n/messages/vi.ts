@@ -11,9 +11,8 @@ type Localized<T> = {
 };
 
 /**
- * Vietnamese message dictionary. Mirrors the `en` key shape exactly. English
- * stays the default; activate this pack at the documented extension point in
- * `lib/i18n/index.ts` (currently `vi` falls back to `en` there).
+ * Vietnamese message dictionary. Mirrors the `en` key shape exactly. Wired
+ * through `lib/i18n/index.ts` (`dictionaries.vi`).
  */
 export const vi: Localized<Messages> = {
   common: {

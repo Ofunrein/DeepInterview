@@ -52,7 +52,7 @@ export function OpenSource() {
               </span>
               {"\n"}
               <span className="text-[#7C84F2]">$</span> git clone
-              github.com/ngoanpv/DeepInterview{"\n"}
+              github.com/Ofunrein/DeepInterview{"\n"}
               <span className="text-[#7C84F2]">$</span> cd DeepInterview{"\n"}
               <span className="text-[#7C84F2]">$</span> docker compose up{"\n"}
               <span className="text-[#5BBF8B]">

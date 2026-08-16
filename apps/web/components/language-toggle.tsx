@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { Locale } from "@/lib/i18n";
+import { LOCALE_CHANGE_EVENT } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 
 const OPTIONS: { value: Locale; label: string }[] = [
@@ -38,6 +39,7 @@ export function LanguageToggle({ className }: { className?: string }) {
       if (next === locale) return;
       document.cookie = `locale=${next}; path=/; max-age=31536000; samesite=lax`;
       setLocale(next);
+      window.dispatchEvent(new Event(LOCALE_CHANGE_EVENT));
       router.refresh();
     },
     [locale, router],

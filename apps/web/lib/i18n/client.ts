@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getMessages, type Locale, type Messages } from "@/lib/i18n";
+import { getMessages, LOCALE_CHANGE_EVENT, type Locale, type Messages } from "@/lib/i18n";
 import { vi } from "@/lib/i18n/messages/vi";
 
 /**
@@ -33,7 +33,10 @@ function readLocaleCookie(): Locale {
 export function useMessages(): Messages {
   const [messages, setMessages] = useState<Messages>(() => resolve("en"));
   useEffect(() => {
-    setMessages(resolve(readLocaleCookie()));
+    const sync = () => setMessages(resolve(readLocaleCookie()));
+    sync();
+    window.addEventListener(LOCALE_CHANGE_EVENT, sync);
+    return () => window.removeEventListener(LOCALE_CHANGE_EVENT, sync);
   }, []);
   return messages;
 }
@@ -47,7 +50,10 @@ export function useMessages(): Messages {
 export function useLocale(): Locale {
   const [locale, setLocale] = useState<Locale>("en");
   useEffect(() => {
-    setLocale(readLocaleCookie());
+    const sync = () => setLocale(readLocaleCookie());
+    sync();
+    window.addEventListener(LOCALE_CHANGE_EVENT, sync);
+    return () => window.removeEventListener(LOCALE_CHANGE_EVENT, sync);
   }, []);
   return locale;
 }

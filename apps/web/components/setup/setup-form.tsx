@@ -184,8 +184,7 @@ export function SetupForm({ r2Configured }: { r2Configured: boolean }) {
     return publicUrl;
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function start() {
     setError(null);
 
     // Client-side validation. CV can be a file OR pasted text; JD required +
@@ -256,6 +255,11 @@ export function SetupForm({ r2Configured }: { r2Configured: boolean }) {
     }
   }
 
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await start();
+  }
+
   const steps: Step[] = [
     { key: "cv", label: t(messages, "setup.stepCv") },
     { key: "company", label: t(messages, "setup.stepCompany") },
@@ -310,7 +314,13 @@ export function SetupForm({ r2Configured }: { r2Configured: boolean }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-6">
+    <form
+      onSubmit={onSubmit}
+      noValidate
+      method="post"
+      action="#"
+      className="mt-8 flex flex-col gap-6"
+    >
       <div>
         <h1 className="serif text-3xl text-ink">
           {t(messages, "setup.title")}
@@ -515,7 +525,11 @@ export function SetupForm({ r2Configured }: { r2Configured: boolean }) {
             >
               <div
                 className="aspect-[4/3] w-full rounded-md border border-line bg-paper bg-cover bg-center"
-                style={{ backgroundImage: `url(${p.poster_url})` }}
+                style={
+                  p.poster_url
+                    ? { backgroundImage: `url(${p.poster_url})` }
+                    : undefined
+                }
                 aria-hidden
               />
               <div>
@@ -544,11 +558,15 @@ export function SetupForm({ r2Configured }: { r2Configured: boolean }) {
       )}
 
       <Button
-        type="submit"
+        type="button"
         size="lg"
         className="self-start"
         disabled={!canSubmit}
         aria-disabled={!canSubmit}
+        onClick={(e) => {
+          e.preventDefault();
+          void start();
+        }}
       >
         {t(messages, "setup.start")}
       </Button>

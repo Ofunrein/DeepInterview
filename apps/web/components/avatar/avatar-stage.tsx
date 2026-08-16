@@ -148,40 +148,42 @@ export function AvatarStage({ persona, state, className }: AvatarStageProps) {
         </div>
       </div>
 
-      {/* Idle layer — visible for idle/listening/thinking. */}
-      <video
-        className={cn(
-          "absolute inset-0 h-full w-full object-cover",
-          "transition-opacity duration-300 ease-out",
-          !showSpeakingLayer && idleReady ? "opacity-100" : "opacity-0",
-        )}
-        src={persona.idle_url}
-        poster={persona.poster_url}
-        loop
-        muted
-        playsInline
-        preload="auto"
-        autoPlay
-        onLoadedData={() => setIdleStatus("ready")}
-        onError={() => setIdleStatus("error")}
-      />
+      {persona.idle_url ? (
+        <video
+          className={cn(
+            "absolute inset-0 h-full w-full object-cover",
+            "transition-opacity duration-300 ease-out",
+            !showSpeakingLayer && idleReady ? "opacity-100" : "opacity-0",
+          )}
+          src={persona.idle_url}
+          poster={persona.poster_url || undefined}
+          loop
+          muted
+          playsInline
+          preload="auto"
+          autoPlay
+          onLoadedData={() => setIdleStatus("ready")}
+          onError={() => setIdleStatus("error")}
+        />
+      ) : null}
 
-      {/* Speaking layer — visible only for `speaking`. */}
-      <video
-        className={cn(
-          "absolute inset-0 h-full w-full object-cover",
-          "transition-opacity duration-300 ease-out",
-          showSpeakingLayer && speakReady ? "opacity-100" : "opacity-0",
-        )}
-        src={persona.speaking_url}
-        loop
-        muted
-        playsInline
-        preload="auto"
-        autoPlay
-        onLoadedData={() => setSpeakStatus("ready")}
-        onError={() => setSpeakStatus("error")}
-      />
+      {persona.speaking_url ? (
+        <video
+          className={cn(
+            "absolute inset-0 h-full w-full object-cover",
+            "transition-opacity duration-300 ease-out",
+            showSpeakingLayer && speakReady ? "opacity-100" : "opacity-0",
+          )}
+          src={persona.speaking_url}
+          loop
+          muted
+          playsInline
+          preload="auto"
+          autoPlay
+          onLoadedData={() => setSpeakStatus("ready")}
+          onError={() => setSpeakStatus("error")}
+        />
+      ) : null}
 
       {/* State pill — small, mono, for at-a-glance clarity. */}
       <div className="absolute left-3 top-3 z-10">

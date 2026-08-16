@@ -13,7 +13,10 @@ export function Hero() {
       <Container className="grid items-center gap-11 pt-[84px] pb-16 min-[920px]:grid-cols-[1.04fr_0.96fr] min-[920px]:gap-14">
         <div>
           <Eyebrow>Open-source AI interviewer</Eyebrow>
-          <h1 className="serif mt-[18px] mb-[22px] text-[44px] text-ink min-[920px]:text-[60px]">
+          <h1
+            className="serif mt-[18px] mb-[22px] text-[44px] text-ink min-[920px]:text-[60px]"
+            aria-label="Practice the interview out loud. Then pass the real one."
+          >
             Practice the interview{" "}
             <em className="italic text-accent">out loud.</em>
             <br />

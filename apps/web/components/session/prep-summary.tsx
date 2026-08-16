@@ -108,11 +108,23 @@ export function PrepSummary({
     <main className="mx-auto max-w-[920px] px-6 py-12">
       <header className="flex items-center justify-between">
         <Eyebrow>DeepInterview</Eyebrow>
-        <Badge variant="outline">{STATUS_BADGE[status]}</Badge>
+        <Badge variant="outline">
+          {view ? STATUS_BADGE[status] : "Loading"}
+        </Badge>
       </header>
 
-      {status === "prep" && (
-        <PrepView progress={view?.progress ?? []} warnings={warnings} />
+      {!view && (
+        <div className="mt-10 flex flex-col items-center gap-3 py-16 text-center">
+          <Spinner className="h-6 w-6" />
+          <h1 className="serif text-2xl text-ink">Looking up this session</h1>
+          <p className="max-w-md text-[14px] text-muted">
+            Checking the prep service — this is not an interview in progress yet.
+          </p>
+        </div>
+      )}
+
+      {view && status === "prep" && (
+        <PrepView progress={view.progress} warnings={warnings} />
       )}
 
       {status === "ready" && view?.context && (

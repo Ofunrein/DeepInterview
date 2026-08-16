@@ -49,6 +49,10 @@ export const metadata = {
     description:
       "Open-source, voice-first AI mock interviews — practice out loud, then pass the real one.",
   },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
