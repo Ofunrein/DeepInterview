@@ -36,9 +36,11 @@ Install the SDK with the extra:
 cd apps/agent && uv sync --extra firebase
 ```
 
-Netlify hosts the frontend only. Deploy the agent API separately (Cloud Run is
-the natural fit — Application Default Credentials work there with no key file)
-and point the web app at it via `AGENT_API_URL`.
+Netlify hosts the frontend only. This fork runs the agent API on a **Render
+free** web service (`https://deepinterview-agent-api.onrender.com`) so Firebase
+can stay on Spark. Point the web app at it via `AGENT_API_URL`. On Render, set
+`FIREBASE_CREDENTIALS_JSON` (service-account JSON) because there is no GCP
+metadata server.
 
 ## Web app (Netlify)
 

@@ -120,6 +120,8 @@ Cloud Build require Blaze.
 
 ### Agent API on Render (free)
 
+Live URL: https://deepinterview-agent-api.onrender.com (`GET /health`).
+
 Created via the Render API in **Martin's workspace**, plan `free`, no disk,
 no database, no autoscaling. Repo `Ofunrein/DeepInterview` branch `main`,
 `rootDir` `apps/agent`:
